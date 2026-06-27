@@ -1,0 +1,1 @@
+{"name":"Echo Health","short_name":"EchoHealth","start_url":"/","display":"standalone","background_color":"#F8F9FB","lang":"en","scope":"/","description":"공공데이터 기반 건강 위험도 분석","theme_color":"#2563EB","icons":[{"src":"pwa-192x192.png","sizes":"192x192","type":"image/png"},{"src":"pwa-512x512.png","sizes":"512x512","type":"image/png"}]}
