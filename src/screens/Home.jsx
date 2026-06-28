@@ -36,7 +36,7 @@ const getPlanProgress = (startDateStr) => {
 };
 
 function HomeScreen({ setScreen, setTab }) {
-  const { user, risks, plan, notifications, setNotifications, todoCheckedState, planStartDate, goalSteps } = useHealth();
+  const { user, risks, plan, notifications, setNotifications, todoCheckedState, planStartDate, weeklyGoals } = useHealth();
   const [showNotif, setShowNotif] = useState(false);
   const [startY, setStartY] = useState(0);
 
@@ -176,7 +176,7 @@ function HomeScreen({ setScreen, setTab }) {
           <div style={S.card}>
             <p style={{ fontWeight: 600, margin: "0 0 8px", fontSize: 14 }}>오늘의 걸음 수 목표</p>
             <p style={{ fontSize: 18, fontWeight: 700, color: "#111", margin: 0 }}>
-              오늘 목표: {(goalSteps ?? 8000).toLocaleString()}보
+              오늘 목표: {(weeklyGoals?.steps ?? 8000).toLocaleString()}보
             </p>
           </div>
           {/* 실천 요약 */}

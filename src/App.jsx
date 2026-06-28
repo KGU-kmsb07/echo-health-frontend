@@ -22,11 +22,12 @@ import DataSourceScreen from "./screens/Datasource";
 import CoachScreen from "./screens/Coach";
 import LoadingScreen from "./screens/Loading";
 import { HealthProvider, useHealth } from "./context/HealthContext";
-import { MOCK_USER } from "./mock/mockData";
 import Loading from "./components/Loading";
+import { runAnalysis } from './services/analyzeService';
+import { runPlanGeneration } from './services/planService';
 
 function AppContent() {
-  const { setUser, setRisks, hasOnboarded, setHasOnboarded, setFirstResult, calculateHealthData, resetPlan, addNotification, setOriginalUser, isLoading, loadingMessage, hideLoading, isEditMode, setEditMode, navigateWithLoading } = useHealth();
+  const { userProfile, predictedProfile, setUserProfile, setPredictedProfile, hasOnboarded, setHasOnboarded, setFirstResult, calculateHealthData, resetPlan, addNotification, setOriginalUser, isLoading, loadingMessage, showLoading, hideLoading, isEditMode, setEditMode, navigateWithLoading, updatePlan } = useHealth();
   const [screen, setScreen] = useState(hasOnboarded ? "home" : "splash");
   const [screenHistory, setScreenHistory] = useState(hasOnboarded ? ["home"] : ["splash"]);
   const [tab, setTab] = useState("home");
@@ -54,6 +55,126 @@ function AppContent() {
     setScreen(prevScreen);
   };
 
+  const handleOnboard4Complete = async (finalData) => {
+    const age = Number(finalData.age);
+    const systolicVal = finalData.bpMode === "manual" ? Number(finalData.systolic) : 120;
+    const diastolicVal = finalData.bpMode === "manual" ? Number(finalData.diastolic) : 80;
+
+    const regionVal = finalData.region || "서울";
+    const districtVal = finalData.district || "마포구";
+    const nameVal = finalData.name || "사용자";
+    const profileImageVal = finalData.profileImage !== undefined ? finalData.profileImage : null;
+
+    const userProfileData = {
+      name: nameVal,
+      profileImage: profileImageVal,
+      age: age,
+      gender: finalData.gender,
+      height: Number(finalData.height),
+      weight: Number(finalData.weight),
+      waist: Number(finalData.waist) || 80,
+      bloodPressure: {
+        systolic: systolicVal,
+        diastolic: diastolicVal
+      },
+      smoking: finalData.smoking,
+      drinking: finalData.drinking,
+      exercise: finalData.exercise,
+      region: regionVal,
+      district: districtVal
+    };
+
+    // 1. userProfile 업데이트
+    setUserProfile(userProfileData);
+    setOriginalUser(userProfileData);
+
+    showLoading("건강 분석 중...");
+    
+    // API 분석 실행
+    let analysisResult = null;
+    try {
+      analysisResult = await runAnalysis(userProfileData);
+      if (analysisResult && !analysisResult.error) {
+        setPredictedProfile(analysisResult);
+      }
+    } catch (e) {
+      console.error("runAnalysis error:", e);
+    }
+    
+    hideLoading();
+    showLoading("맞춤 플랜 생성 중...");
+    
+    // API 플랜 생성
+    let planResult = null;
+    try {
+      planResult = await runPlanGeneration(
+        analysisResult || predictedProfile,
+        userProfileData.age
+      );
+      if (planResult) {
+        updatePlan(planResult);
+      }
+    } catch (e) {
+      console.error("runPlanGeneration error:", e);
+    }
+    
+    hideLoading();
+
+    // 후속 호환성 연산
+    const calculated = analysisResult ? {
+      bmi: analysisResult.bmi,
+      healthScore: analysisResult.healthScore,
+      healthAge: analysisResult.healthAge,
+      risks: {
+        diabetes: analysisResult.diabetes,
+        hypertension: analysisResult.hypertension,
+        metabolic: analysisResult.metabolic,
+        obesity: analysisResult.obesity
+      }
+    } : calculateHealthData({
+      ...finalData,
+      systolic: systolicVal,
+      diastolic: diastolicVal
+    }, age);
+
+    const finalRisks = analysisResult ? {
+      diabetes: analysisResult.diabetes,
+      hypertension: analysisResult.hypertension,
+      metabolic: analysisResult.metabolic,
+      obesity: analysisResult.obesity
+    } : calculated.risks;
+
+    const finalBmi = analysisResult?.bmi ?? calculated.bmi;
+
+    const updatedUser = {
+      ...userProfileData,
+      ...(analysisResult || {}),
+      persona: `${regionVal} ${districtVal}에 사는 ${finalData.age}세 ${finalData.gender}`,
+      personaTags: [finalData.gender, `${finalData.age}세`, regionVal, districtVal, finalData.smoking, finalBmi >= 25 ? "비만" : "정상"],
+      createdAt: new Date().toISOString()
+    };
+    
+    resetPlan(updatedUser);
+    addNotification("건강정보가 업데이트 되었어요.", "📈", "analyze", "analyze");
+    setHasOnboarded(true);
+
+    setFirstResult({
+      user: updatedUser,
+      risks: finalRisks
+    });
+    
+    if (isEditMode) {
+      setScreen("mypage");
+      setTab("mypage");
+      setScreenHistory(["mypage"]);
+      setEditMode(false);
+    } else {
+      setTab("home");
+      setScreenHistory(["home"]);
+      setScreen("home");
+    }
+  };
+
   const renderScreen = () => {
     const getScreenComponent = () => {
       switch (screen) {
@@ -62,72 +183,7 @@ function AppContent() {
         case "onboard1": return <OnboardStep1 next={(data) => { setTempOnboardData(prev => ({ ...prev, ...data })); navigateTo("onboard2"); }} back={goBack} />;
         case "onboard2": return <OnboardStep2 next={(data) => { setTempOnboardData(prev => ({ ...prev, ...data })); navigateTo("onboard3"); }} back={goBack} />;
         case "onboard3": return <OnboardStep3 next={(data) => { setTempOnboardData(prev => ({ ...prev, ...data })); navigateTo("onboard4"); }} back={goBack} />;
-        case "onboard4": return <OnboardStep4 next={(data) => {
-          const finalData = { ...tempOnboardData, ...data };
-          const age = Number(finalData.age);
-          const systolicVal = finalData.bpMode === "manual" ? Number(finalData.systolic) : 120;
-          const diastolicVal = finalData.bpMode === "manual" ? Number(finalData.diastolic) : 80;
-
-          const calculated = calculateHealthData({
-            ...finalData,
-            systolic: systolicVal,
-            diastolic: diastolicVal
-          }, age);
-
-          const regionVal = finalData.region || MOCK_USER.region || "서울";
-          const districtVal = finalData.district || MOCK_USER.district || "마포구";
-          const nameVal = finalData.name || MOCK_USER.name || "사용자";
-          const profileImageVal = finalData.profileImage !== undefined ? finalData.profileImage : null;
-
-          const updatedUser = {
-            ...MOCK_USER,
-            name: nameVal,
-            profileImage: profileImageVal,
-            region: regionVal,
-            district: districtVal,
-            gender: finalData.gender,
-            age: age,
-            height: Number(finalData.height),
-            weight: Number(finalData.weight),
-            bmi: calculated.bmi,
-            bloodPressure: {
-              systolic: systolicVal,
-              diastolic: diastolicVal
-            },
-            smoking: finalData.smoking,
-            drinking: finalData.drinking,
-            exercise: finalData.exercise,
-            bpMode: finalData.bpMode,
-            healthScore: calculated.healthScore,
-            healthAge: calculated.healthAge,
-            persona: `${regionVal} ${districtVal}에 사는 ${finalData.age}세 ${finalData.gender}`,
-            personaTags: [finalData.gender, `${finalData.age}세`, regionVal, districtVal, finalData.smoking, calculated.bmi >= 25 ? "비만" : "정상"],
-            createdAt: new Date().toISOString()
-          };
-          
-          resetPlan(updatedUser);
-          addNotification("건강정보가 업데이트 되었어요.", "📈", "analyze", "analyze");
-          setUser(updatedUser);
-          setOriginalUser(updatedUser);
-          setRisks(calculated.risks);
-          setHasOnboarded(true);
-
-          setFirstResult({
-            user: updatedUser,
-            risks: calculated.risks
-          });
-          
-          if (isEditMode) {
-            setScreen("mypage");
-            setTab("mypage");
-            setScreenHistory(["mypage"]);
-            setEditMode(false);
-          } else {
-            setTab("home");
-            setScreenHistory(["home"]);
-            navigateWithLoading(setScreen, "home", 600, "로딩 중");
-          }
-        }} back={goBack} />;
+        case "onboard4": return <OnboardStep4 next={(data) => handleOnboard4Complete({ ...tempOnboardData, ...data })} back={goBack} />;
         case "loading": return <LoadingScreen message={loadingMessage} />;
         case "home": return <HomeScreen setScreen={navigateTo} setTab={setTab} />;
         case "analyze": return <AnalyzeScreen setScreen={navigateTo} back={goBack} />;

@@ -8,7 +8,7 @@ const restrictInteger = (val, max = 3) => {
 };
 
 function OnboardStep3({ next, back }) {
-  const { user, hasOnboarded } = useHealth();
+  const { user, hasOnboarded, updateUser } = useHealth();
   const [mode, setMode] = useState(hasOnboarded ? user?.bpMode || null : null);
   const [systolic, setSystolic] = useState(hasOnboarded && user?.bpMode === "manual" ? user?.bloodPressure?.systolic || "" : "");
   const [diastolic, setDiastolic] = useState(hasOnboarded && user?.bpMode === "manual" ? user?.bloodPressure?.diastolic || "" : "");
@@ -29,7 +29,12 @@ function OnboardStep3({ next, back }) {
         return;
       }
     }
-    next({ bpMode: mode, systolic: systolic || "120", diastolic: diastolic || "80" });
+    const data = { bpMode: mode, systolic: systolic || "120", diastolic: diastolic || "80" };
+    updateUser({
+      bpMode: data.bpMode,
+      bloodPressure: { systolic: Number(data.systolic), diastolic: Number(data.diastolic) }
+    });
+    next(data);
   };
 
   return (

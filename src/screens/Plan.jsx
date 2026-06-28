@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import S from '../styles/shared';
 import { useHealth } from '../context/HealthContext';
 import WeeklyMilestoneCard, { getWeeklyResult } from '../components/WeeklyMilestoneCard';
@@ -24,58 +24,63 @@ function PlanScreen({ setScreen }) {
     resetPlan,
     setLoadingMessage
   } = useHealth();
-  const [loading, setLoading] = useState(true);
-  const [toast, setToast] = useState(null);
 
+  const [loading, setLoading] = useState(!plan && !planGenerated);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  
+  const isMountedRef = useRef(true);
   useEffect(() => {
-    let isMounted = true;
-    const hasAnalysis = risks && (risks.diabetes !== null || risks.hypertension !== null);
-    if (!hasAnalysis) {
-      setLoading(false);
-      return;
-    }
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
-    async function fetchNewPlan() {
-      try {
-        showLoading("AI가 맞춤 플랜을 생성하고 있어요...");
-        setLoading(true);
-        const targetResult = simulationResult || risks;
-        if (targetResult) {
-          const generatedPlan = await getPlan(targetResult);
-          if (isMounted) {
-            updatePlan(generatedPlan);
-            setPlanGenerated(true);
-          }
-        }
-      } catch (error) {
-        console.error("Failed to load plan", error);
-      } finally {
-        if (isMounted) {
-          setLoading(false);
-          hideLoading();
+  const fetchNewPlan = async () => {
+    try {
+      showLoading("AI가 맞춤 플랜을 생성하고 있어요...");
+      setLoading(true);
+      const targetResult = simulationResult || risks;
+      if (targetResult) {
+        const generatedPlan = await getPlan(targetResult);
+        if (isMountedRef.current) {
+          updatePlan(generatedPlan);
+          setPlanGenerated(true);
         }
       }
+    } catch (error) {
+      console.error("Failed to load plan", error);
+    } finally {
+      if (isMountedRef.current) {
+        setLoading(false);
+        hideLoading();
+      }
     }
+  };
 
-    if (!plan) {
+  const handleKeepPlan = () => {
+    setShowConfirmModal(false);
+  };
+
+  const handleRecreatePlan = () => {
+    setShowConfirmModal(false);
+    resetPlan();
+    updatePlan(null);
+    setPlanGenerated(false);
+    fetchNewPlan();
+  };
+
+  useEffect(() => {
+    if (plan) {
+      setLoading(false);
+    } else {
       if (!planGenerated) {
         fetchNewPlan();
       } else {
         setLoading(false);
       }
-    } else {
-      setLoading(false);
     }
-
-    return () => { isMounted = false; };
   }, []);
-
-  const showToast = (message) => {
-    setToast(message);
-    setTimeout(() => {
-      setToast(null);
-    }, 2000);
-  };
 
   // 플랜 시작일 기준 현재 주차 및 오늘 요일 연산
   const getPlanProgress = (startDateStr) => {
@@ -98,33 +103,9 @@ function PlanScreen({ setScreen }) {
     return { week, dayName, diffDays, dayIndex };
   };
 
-  const hasAnalysis = risks && (risks.diabetes !== null || risks.hypertension !== null);
 
-  if (!hasAnalysis) {
-    return (
-      <div style={S.screen}>
-        <div style={{
-          display: "flex", flexDirection: "column",
-          alignItems: "center", justifyContent: "center",
-          height: "100vh", padding: 40, textAlign: "center"
-        }}>
-          <span style={{ fontSize: 48, marginBottom: 16 }}>📋</span>
-          <p style={{ fontSize: 16, fontWeight: 700, marginBottom: 8 }}>
-            먼저 건강 분석을 완료해주세요
-          </p>
-          <p style={{ fontSize: 14, color: "#6B7280", marginBottom: 24 }}>
-            분석 결과를 바탕으로 맞춤 플랜을 생성해드려요
-          </p>
-          <button
-            onClick={() => setScreen("analyze")}
-            style={{ ...S.btn("primary") }}
-          >
-            건강 분석 하러 가기
-          </button>
-        </div>
-      </div>
-    );
-  }
+
+
 
   if (loading) {
     return (
@@ -172,7 +153,6 @@ function PlanScreen({ setScreen }) {
               let nextStatus = d.status;
               if (allChecked) {
                 nextStatus = "success";
-                showToast("오늘 실천 리스트를 모두 완료했습니다! (성공 ✅)");
               } else if (anyChecked) {
                 nextStatus = "in-progress";
               } else {
@@ -425,25 +405,33 @@ function PlanScreen({ setScreen }) {
         </div>
       </div>
 
-      {/* Toast Message */}
-      {toast && (
+      {/* 확인 모달 */}
+      {showConfirmModal && (
         <div style={{
-          position: "fixed",
-          bottom: 40,
-          left: "50%",
-          transform: "translateX(-50%)",
-          background: "rgba(0, 0, 0, 0.8)",
-          color: "#fff",
-          padding: "10px 20px",
-          borderRadius: 20,
-          fontSize: 13,
-          zIndex: 200,
-          textAlign: "center",
-          boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
-          whiteSpace: "nowrap",
-          pointerEvents: "none"
+          position: "fixed", inset: 0,
+          background: "rgba(0,0,0,0.4)", zIndex: 200,
+          display: "flex", alignItems: "flex-end",
+          justifyContent: "center"
         }}>
-          {toast}
+          <div style={{
+            background: "#fff", borderRadius: "20px 20px 0 0",
+            padding: 24, width: "100%", maxWidth: 390,
+            boxSizing: "border-box", marginBottom: 56
+          }}>
+            <p style={{ fontWeight: 700, fontSize: 16, marginBottom: 8 }}>
+              기존 플랜이 있어요
+            </p>
+            <p style={{ fontSize: 14, color: "#6B7280", marginBottom: 20 }}>
+              기존 플랜을 유지할까요, 새로 생성할까요?<br />
+              새로 생성하면 체크 기록이 초기화됩니다.
+            </p>
+            <button onClick={handleKeepPlan} style={{ ...S.btn("primary"), marginBottom: 10 }}>
+              기존 플랜 유지하기
+            </button>
+            <button onClick={handleRecreatePlan} style={{ ...S.btn("outline") }}>
+              새로 생성하기
+            </button>
+          </div>
         </div>
       )}
     </div>

@@ -30,7 +30,7 @@ const riskColor = (value) => {
 };
 
 function SimulateScreen({ setScreen, back }) {
-  const { user, wearData, risks, calculateHealthData, updateSimulationResult, updateUser, showLoading, hideLoading, updateGoalSteps, navigateWithLoading } = useHealth();
+  const { user, wearData, risks, calculateHealthData, updateSimulationResult, updateUser, showLoading, hideLoading, setWeeklyGoals, navigateWithLoading } = useHealth();
 
   const [weight, setWeight] = useState(user?.weight ?? "");
   const [systolic, setSystolic] = useState(user?.bloodPressure?.systolic ?? 120);
@@ -98,7 +98,7 @@ function SimulateScreen({ setScreen, back }) {
     });
 
     updateSimulationResult(improvedRisks);
-    updateGoalSteps(steps);
+    setWeeklyGoals(prev => ({ ...prev, steps: Number(steps) }));
 
     updateUser({
       weight: Number(weight || user.weight || 70),

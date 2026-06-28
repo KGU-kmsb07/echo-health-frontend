@@ -41,7 +41,7 @@ export async function sendCoachMessage(messages, userContext) {
     return await res.json();
   } catch (e) {
     return {
-      reply: "현재 AI 코치 서비스에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요.",
+      text: "현재 AI 코치 서비스에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요.",
       source: "서비스 점검 중"
     };
   }

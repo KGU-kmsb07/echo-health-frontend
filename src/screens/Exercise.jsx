@@ -4,7 +4,7 @@ import { ProgressBar } from '../components/Card';
 import { useHealth } from '../context/HealthContext';
 
 function ExerciseScreen() {
-  const { wearData, todaySteps, updateTodaySteps, goalSteps } = useHealth();
+  const { wearData, todaySteps, updateTodaySteps, weeklyGoals } = useHealth();
   const [showAddModal, setShowAddModal] = useState(false);
   const [selectedDay, setSelectedDay] = useState(new Date().getDate());
   const [exerciseType, setExerciseType] = useState("헬스");
@@ -192,10 +192,10 @@ function ExerciseScreen() {
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6, fontSize: 13 }}>
                 <span style={{ fontWeight: 600 }}>걸음 수 달성률</span>
                 <span style={{ color: "#2563EB", fontWeight: 700 }}>
-                  {(todaySteps ?? 0).toLocaleString()} / {(goalSteps ?? 8000).toLocaleString()} 보 ({Math.min(100, Math.round(((todaySteps ?? 0) / (goalSteps ?? 8000)) * 100))}%)
+                  {(todaySteps ?? 0).toLocaleString()} / {(weeklyGoals?.steps ?? 8000).toLocaleString()} 보 ({Math.min(100, Math.round(((todaySteps ?? 0) / (weeklyGoals?.steps ?? 8000)) * 100))}%)
                 </span>
               </div>
-              <ProgressBar pct={Math.min(100, Math.round(((todaySteps ?? 0) / (goalSteps ?? 8000)) * 100))} color="#2563EB" />
+              <ProgressBar pct={Math.min(100, Math.round(((todaySteps ?? 0) / (weeklyGoals?.steps ?? 8000)) * 100))} color="#2563EB" />
             </div>
           </div>
 

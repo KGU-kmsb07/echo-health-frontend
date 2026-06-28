@@ -1,6 +1,7 @@
 import { useState } from "react";
 import S from '../styles/shared';
 import { useHealth } from '../context/HealthContext';
+import { runAnalysis } from '../services/analyzeService';
 
 const restrictInteger = (val, max = 3) => {
   const numOnly = val.replace(/[^0-9]/g, "");
@@ -8,7 +9,7 @@ const restrictInteger = (val, max = 3) => {
 };
 
 function ReanalyzeScreen({ setScreen, back }) {
-  const { user, setUser, setRisks, setNewResult, calculateHealthData, addNotification } = useHealth();
+  const { user, setUser, setRisks, setNewResult, calculateHealthData, addNotification, showLoading, hideLoading, userProfile, updateUserProfile, setPredictedProfile, setHasReanalyzed } = useHealth();
   const [smoking, setSmoking] = useState(user?.smoking || "비흡연");
   const [drinking, setDrinking] = useState(user?.drinking || "거의 안 함");
   const [exercise, setExercise] = useState(user?.exercise || "거의 안 함");
@@ -119,49 +120,63 @@ function ReanalyzeScreen({ setScreen, back }) {
 
           </div>
           <button 
-            onClick={() => {
-              const finalSystolic = systolic ? Number(systolic) : (user.bloodPressure?.systolic ?? 120);
-              const finalDiastolic = diastolic ? Number(diastolic) : (user.bloodPressure?.diastolic ?? 80);
+            onClick={async () => {
+              const finalSystolic = systolic ? Number(systolic) : (userProfile?.bloodPressure?.systolic ?? 120);
+              const finalDiastolic = diastolic ? Number(diastolic) : (userProfile?.bloodPressure?.diastolic ?? 80);
               
-              const finalData = {
-                ...user,
-                smoking,
-                drinking,
-                exercise,
-                sleep: Number(sleep),
-                systolic: finalSystolic,
-                diastolic: finalDiastolic
-              };
+              try {
+                showLoading("재분석 중...");
 
-              const calculated = calculateHealthData(finalData, user.age);
+                const mergedUserProfile = {
+                  ...userProfile,
+                  smoking,
+                  drinking,
+                  exercise,
+                  sleep: Number(sleep),
+                  bloodPressure: {
+                    systolic: finalSystolic,
+                    diastolic: finalDiastolic
+                  }
+                };
 
-              const updatedUser = {
-                ...user,
-                smoking,
-                drinking,
-                exercise,
-                sleep: Number(sleep),
-                bloodPressure: {
-                  systolic: finalSystolic,
-                  diastolic: finalDiastolic
-                },
-                bmi: calculated.bmi,
-                healthScore: calculated.healthScore,
-                healthAge: calculated.healthAge,
-                persona: `${user.region} ${user.district}에 사는 ${user.age}세 ${user.gender}`,
-                personaTags: [user.gender, `${user.age}세`, user.region, user.district, smoking, calculated.bmi >= 25 ? "비만" : "정상"]
-              };
+                const result = await runAnalysis(mergedUserProfile);
 
-              setUser(updatedUser);
-              setRisks(calculated.risks);
+                if (result && !result.error) {
+                  const updatedUser = {
+                    ...mergedUserProfile,
+                    ...result,
+                    persona: `${userProfile?.region} ${userProfile?.district}에 사는 ${userProfile?.age}세 ${userProfile?.gender}`,
+                    personaTags: [userProfile?.gender, `${userProfile?.age}세`, userProfile?.region, userProfile?.district, smoking, result.bmi >= 25 ? "비만" : "정상"]
+                  };
 
-              setNewResult({
-                user: updatedUser,
-                risks: calculated.risks
-              });
+                  const updatedRisks = {
+                    diabetes: result.diabetes,
+                    hypertension: result.hypertension,
+                    metabolic: result.metabolic,
+                    obesity: result.obesity
+                  };
 
-              addNotification("건강정보가 업데이트 되었어요.", "📈", "analyze", "analyze");
-              setScreen("newresult");
+                  updateUserProfile(mergedUserProfile);
+                  setPredictedProfile(result);
+
+                  setNewResult({
+                    user: updatedUser,
+                    risks: updatedRisks
+                  });
+
+                  setHasReanalyzed(true);
+
+                  addNotification("건강정보가 업데이트 되었어요.", "📈", "analyze", "analyze");
+                  setScreen("newresult");
+                } else {
+                  throw new Error("분석 결과가 올바르지 않습니다.");
+                }
+              } catch (e) {
+                console.error("runAnalysis error:", e);
+                alert("재분석 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.");
+              } finally {
+                hideLoading();
+              }
             }} 
             style={S.btn()}
           >

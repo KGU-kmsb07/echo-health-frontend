@@ -1,11 +1,11 @@
 import { useState, useRef } from "react";
 import S from '../styles/shared';
 import { MOCK_CHAT, QUICK_CHAT_HINTS } from '../mock/mockData';
-import { sendCoachMessage } from '../api/echoApi';
+import { runCoach } from '../services/coachService';
 import { useHealth } from '../context/HealthContext';
 
 function CoachScreen({ setScreen }) {
-  const { user } = useHealth();
+  const { user, risks, userProfile, predictedProfile } = useHealth();
   const [messages, setMessages] = useState(() => {
     return [
       {
@@ -59,12 +59,12 @@ function CoachScreen({ setScreen }) {
 
     try {
       // 2. 실제 API 호출
-      const response = await sendCoachMessage([...messages, userMessage]);
+      const response = await runCoach([...messages, userMessage], userProfile, predictedProfile);
       
       // 3. 성공 시 응답 추가
       setMessages(prev => [...prev, {
         role: "ai",
-        text: response.text,
+        text: response.reply || response.text,
         source: response.source
       }]);
     } catch (e) {

@@ -25,7 +25,7 @@ const restrictFloat = (val, maxIntDigits = 3) => {
 };
 
 function OnboardStep2({ next, back }) {
-  const { user, hasOnboarded } = useHealth();
+  const { user, hasOnboarded, updateUser } = useHealth();
   const [gender, setGender] = useState(hasOnboarded ? user?.gender || "" : "");
   const [age, setAge] = useState(hasOnboarded ? user?.age || "" : "");
   const [height, setHeight] = useState(hasOnboarded ? user?.height || "" : "");
@@ -43,7 +43,9 @@ function OnboardStep2({ next, back }) {
       setErrors(newErrors);
       return;
     }
-    next({ gender, age: Number(age), height: Number(height), weight: Number(weight) });
+    const data = { gender, age: Number(age), height: Number(height), weight: Number(weight) };
+    updateUser(data);
+    next(data);
   };
 
   return (

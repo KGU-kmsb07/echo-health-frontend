@@ -1,27 +1,7 @@
 // ─── MOCK DATA ───────────────────────────────────────────────────────────────
-export const MOCK_USER = {
-  name: "",
-  age: null,
-  gender: "",
-  height: null,
-  weight: null,
-  bloodPressure: { systolic: null, diastolic: null },
-  smoking: "",
-  drinking: "",
-  exercise: "",
-  profileImage: null,
-  healthScore: null,
-  healthAge: null,
-  persona: "",
-  personaTags: []
-};
+export const MOCK_USER = null;
 
-export const MOCK_RISKS = {
-  diabetes: null,
-  hypertension: null,
-  metabolic: null,
-  obesity: null
-};
+export const MOCK_RISKS = null;
 
 export const MOCK_PLAN = [];
 export const MOCK_BENEFITS = [];
