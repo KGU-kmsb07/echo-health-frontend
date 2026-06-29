@@ -1,6 +1,7 @@
 import { useState } from "react";
 import S from '../styles/shared';
 import { useHealth } from '../context/HealthContext';
+import { simulateHealth } from '../api/echoApi';
 
 const restrictFloat = (val, maxIntDigits = 3) => {
   let clean = val.replace(/[^0-9.]/g, "");
@@ -54,64 +55,62 @@ function SimulateScreen({ setScreen, back }) {
     return <div style={{ padding: 20, textAlign: "center" }}>로딩 중...</div>;
   }
 
-  // 실시간 위험도 계산 함수 (기존 calculateHealthData 로직 활용)
-  const calcRisk = (data) => {
-    return calculateHealthData(data, user.age).risks;
-  };
-
-  // 실시간 위험도 재연산
-  const currentRisks = calcRisk({
-    ...user,
-    weight: Number(weight || user.weight || 70),
-    bloodPressure: {
-      systolic: Number(systolic || user.bloodPressure?.systolic || 120),
-      diastolic: Number(diastolic || user.bloodPressure?.diastolic || 80)
-    },
-    exercise,
-    smoking,
-    drinking
-  });
-
-  const diseases = [
-    { key: "diabetes", label: "당뇨", icon: "💧" },
-    { key: "hypertension", label: "고혈압", icon: "❤️" },
-    { key: "metabolic", label: "대사증후군", icon: "📋" },
-    { key: "obesity", label: "비만", icon: "⚖️" }
-  ];
-
-  const handleConfirm = () => {
+  const handleConfirm = async () => {
     setShowValidation(true);
     if (!isValid) return;
 
     showLoading("결과를 계산하고 있어요...");
 
-    const improvedRisks = calcRisk({
-      ...user,
-      weight: Number(weight || user.weight || 70),
-      bloodPressure: {
-        systolic: Number(systolic || user.bloodPressure?.systolic || 120),
-        diastolic: Number(diastolic || user.bloodPressure?.diastolic || 80)
-      },
-      exercise,
-      smoking,
-      drinking
-    });
+    const payload = {
+      age: user.age,
+      sex: user.gender === "남성" ? 1 : 2,
+      height_cm: Number(user.height),
+      weight_kg: Number(weight),
+      waist_cm: Number(user.waist) || 80,
+      bmi: Number(weight) / ((Number(user.height) / 100) ** 2),
+      systolic_bp: Number(systolic),
+      diastolic_bp: Number(diastolic),
+      fasting_glucose: 90,
+      hba1c: 5.2,
+      total_cholesterol: 180,
+      hdl_cholesterol: 50,
+      triglyceride: 120,
+      ldl_direct: 110,
+      current_smoking: smoking !== "비흡연" ? 1 : 0,
+      aerobic_activity: exercise === "거의 안 함" ? 0 : 1
+    };
 
-    updateSimulationResult(improvedRisks);
-    setWeeklyGoals(prev => ({ ...prev, steps: Number(steps) }));
-
-    updateUser({
-      weight: Number(weight || user.weight || 70),
-      bloodPressure: {
-        systolic: Number(systolic || user.bloodPressure?.systolic || 120),
-        diastolic: Number(diastolic || user.bloodPressure?.diastolic || 80)
-      },
-      exercise,
-      smoking,
-      drinking
-    });
-    
-    navigateWithLoading(setScreen, "improved", 600, "결과 계산 중...");
+    try {
+      const result = await simulateHealth(payload);
+      if (result && !result.error) {
+        updateSimulationResult({
+          bmi: result.bmi,
+          obesity_status: result.obesity_status,
+          hypertension_prob: result.hypertension_prob,
+          diabetes_prob: result.diabetes_prob,
+          vitality_score: result.vitality_score,
+          simulatedInputs: {
+            weight: Number(weight),
+            bloodPressure: {
+              systolic: Number(systolic),
+              diastolic: Number(diastolic)
+            },
+            exercise,
+            smoking,
+            drinking
+          }
+        });
+        setWeeklyGoals(prev => ({ ...prev, steps: Number(steps) }));
+        navigateWithLoading(setScreen, "improved", 600, "결과 계산 중...");
+      } else {
+        throw new Error("시뮬레이션 API 결과가 올바르지 않습니다.");
+      }
+    } catch (e) {
+      console.error("simulateHealth error:", e);
+      alert("시뮬레이션 결과를 계산하는 도중 오류가 발생했습니다.");
+    } finally {
+      hideLoading();
+    }
   };
 
   return (

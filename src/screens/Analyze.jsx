@@ -46,6 +46,105 @@ function AnalyzeScreen({ setScreen, back }) {
     ? `${user.bloodPressure.systolic}/${user.bloodPressure.diastolic}mmHg`
     : "-";
 
+  const getBmiInfo = (bmi) => {
+    if (bmi === null || bmi === undefined) return { status: "미측정", color: "#9CA3AF", pct: 0 };
+    const val = Number(bmi);
+    if (val >= 25) return { status: "비만", color: "#DC2626", pct: 100 };
+    if (val >= 23) return { status: "과체중", color: "#F59E0B", pct: 66 };
+    return { status: "정상", color: "#10B981", pct: 33 };
+  };
+
+  const getBpInfo = (bp) => {
+    if (!bp || bp.systolic === null || bp.systolic === undefined) return { status: "미측정", color: "#9CA3AF", pct: 0 };
+    const sys = Number(bp.systolic);
+    const dia = Number(bp.diastolic);
+    if (sys >= 140 || dia >= 90) return { status: "고혈압", color: "#DC2626", pct: 100 };
+    if (sys >= 120 || dia >= 80) return { status: "주의", color: "#F59E0B", pct: 66 };
+    return { status: "정상", color: "#10B981", pct: 33 };
+  };
+
+  const getExerciseInfo = (ex) => {
+    if (!ex) return { status: "미측정", color: "#9CA3AF", pct: 0 };
+    if (ex === "주 5회 이상") return { status: "최상", color: "#10B981", pct: 100 };
+    if (ex === "주 3~4회") return { status: "양호", color: "#10B981", pct: 75 };
+    if (ex === "주 1~2회") return { status: "보통", color: "#F59E0B", pct: 50 };
+    return { status: "부족", color: "#DC2626", pct: 25 };
+  };
+
+  const getSmokingInfo = (sm) => {
+    if (!sm) return { status: "미측정", color: "#9CA3AF", pct: 0 };
+    if (sm === "현재 흡연") return { status: "위험", color: "#DC2626", pct: 100 };
+    if (sm === "과거 흡연") return { status: "주의", color: "#F59E0B", pct: 66 };
+    return { status: "양호", color: "#10B981", pct: 33 };
+  };
+
+  const getDrinkingInfo = (dr) => {
+    if (!dr) return { status: "미측정", color: "#9CA3AF", pct: 0 };
+    if (dr === "주 3회 이상") return { status: "위험", color: "#DC2626", pct: 100 };
+    if (dr === "주 1~2회") return { status: "주의", color: "#F59E0B", pct: 75 };
+    if (dr === "월 1~3회") return { status: "보통", color: "#F59E0B", pct: 50 };
+    return { status: "양호", color: "#10B981", pct: 25 };
+  };
+
+  const bmiInfo = getBmiInfo(bmiValue);
+  const bpInfo = getBpInfo(user.bloodPressure);
+  const exInfo = getExerciseInfo(user.exercise);
+  const smInfo = getSmokingInfo(user.smoking);
+  const drInfo = getDrinkingInfo(user.drinking);
+
+  const indicators = [
+    {
+      label: "BMI",
+      badge: "자동 계산",
+      status: bmiInfo.status,
+      value: bmiValue !== null ? `${bmiValue}` : "-",
+      rank: bmiValue !== null ? (bmiValue >= 25 ? "상위 85%" : bmiValue >= 23 ? "상위 68%" : "상위 30%") : "-",
+      pct: bmiInfo.pct,
+      color: bmiInfo.color,
+      normal: "정상범위: 18.5~23"
+    },
+    {
+      label: "혈압",
+      badge: "직접 입력",
+      status: bpInfo.status,
+      value: bpValue,
+      rank: hasBP ? (user.bloodPressure.systolic >= 140 ? "상위 90%" : user.bloodPressure.systolic >= 120 ? "상위 65%" : "상위 20%") : "-",
+      pct: bpInfo.pct,
+      color: bpInfo.color,
+      normal: "정상범위: < 120"
+    },
+    {
+      label: "운동빈도",
+      badge: "직접 입력",
+      status: exInfo.status,
+      value: user.exercise || "-",
+      rank: user.exercise ? (user.exercise === "거의 안 함" ? "상위 95%" : "상위 35%") : "-",
+      pct: exInfo.pct,
+      color: exInfo.color,
+      normal: "정상범위: 주 3회 이상"
+    },
+    {
+      label: "흡연",
+      badge: "직접 입력",
+      status: smInfo.status,
+      value: user.smoking || "-",
+      rank: user.smoking ? (user.smoking === "비흡연" ? "상위 40%" : "상위 100%") : "-",
+      pct: smInfo.pct,
+      color: smInfo.color,
+      normal: "정상범위: 비흡연"
+    },
+    {
+      label: "음주",
+      badge: "직접 입력",
+      status: drInfo.status,
+      value: user.drinking || "-",
+      rank: user.drinking ? (user.drinking === "거의 안 함" ? "상위 30%" : "상위 70%") : "-",
+      pct: drInfo.pct,
+      color: drInfo.color,
+      normal: "정상범위: 거의 안 함"
+    }
+  ];
+
   return (
     <div style={S.screen}>
       <div style={{ background: "#fff", padding: "16px 20px", display: "flex", alignItems: "center", gap: 12 }}>
@@ -64,10 +163,10 @@ function AnalyzeScreen({ setScreen, back }) {
             <p style={{ fontSize: 13, fontWeight: 700, color: "#111", margin: "0 0 12px" }}>질환 위험도</p>
             <div style={{ display: "flex", justifyContent: "space-around" }}>
               {[
-                { label: "당뇨",    key: "diabetes" },
-                { label: "고혈압",  key: "hypertension" },
+                { label: "당뇨",       key: "diabetes" },
+                { label: "고혈압",     key: "hypertension" },
                 { label: "대사증후군", key: "metabolic" },
-                { label: "비만",    key: "obesity" },
+                { label: "비만",       key: "obesity" },
               ].map(({ label, key }) => {
                 const val = risks?.[key] ?? null;
                 const rl = riskLevel(val);
@@ -77,7 +176,7 @@ function AnalyzeScreen({ setScreen, back }) {
                     <div style={{ fontSize: 11, fontWeight: 700, color: rl.color }}>{rl.label}</div>
                     <div style={{ fontSize: 10, color: "#9CA3AF", marginTop: 2 }}>{label}</div>
                     {val != null && (
-                      <div style={{ fontSize: 11, color: rl.color, fontWeight: 600 }}>{val}%</div>
+                      <div style={{ fontSize: 11, color: rl.color, fontWeight: 600 }}>{Math.round(val)}%</div>
                     )}
                   </div>
                 );
@@ -91,58 +190,7 @@ function AnalyzeScreen({ setScreen, back }) {
             ))}
           </div>
 
-          {[
-            {
-              label: "BMI",
-              badge: "자동 계산",
-              status: bmiStatus,
-              value: bmiValue !== null ? `${bmiValue}` : "-",
-              rank: bmiValue !== null ? "상위 68%" : "-",
-              pct: bmiValue !== null ? 68 : 0,
-              color: bmiValue === null ? "#9CA3AF" : (bmiValue >= 23 ? "#F59E0B" : "#10B981"),
-              normal: "정상범위: 18.5~23"
-            },
-            {
-              label: "혈압",
-              badge: "직접 입력",
-              status: !hasBP ? "미측정" : (user.bloodPressure.systolic >= 130 ? "주의" : "정상"),
-              value: bpValue,
-              rank: hasBP ? "상위 65%" : "-",
-              pct: hasBP ? 65 : 0,
-              color: !hasBP ? "#9CA3AF" : "#EF4444",
-              normal: "정상범위: < 120"
-            },
-            {
-              label: "운동빈도",
-              badge: "직접 입력",
-              status: !user.exercise ? "미측정" : "부족",
-              value: user.exercise || "-",
-              rank: user.exercise ? "상위 25%" : "-",
-              pct: user.exercise ? 25 : 0,
-              color: !user.exercise ? "#9CA3AF" : "#EF4444",
-              normal: "정상범위: 주 3회 이상"
-            },
-            {
-              label: "흡연",
-              badge: "직접 입력",
-              status: !user.smoking ? "미측정" : (user.smoking === "비흡연" ? "양호" : "주의"),
-              value: user.smoking || "-",
-              rank: user.smoking ? "상위 100%" : "-",
-              pct: user.smoking ? 100 : 0,
-              color: !user.smoking ? "#9CA3AF" : (user.smoking === "비흡연" ? "#10B981" : "#EF4444"),
-              normal: "정상범위: 비흡연"
-            },
-            {
-              label: "음주",
-              badge: "직접 입력",
-              status: !user.drinking ? "미측정" : "주의",
-              value: user.drinking || "-",
-              rank: user.drinking ? "상위 55%" : "-",
-              pct: user.drinking ? 55 : 0,
-              color: !user.drinking ? "#9CA3AF" : "#F59E0B",
-              normal: "정상범위: < 2"
-            },
-          ].map(item => {
+          {indicators.map(item => {
             const colors = statusColors(item.status);
             return (
               <div key={item.label} style={{ ...S.card, marginBottom: 10 }}>

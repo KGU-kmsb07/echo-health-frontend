@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import S from '../styles/shared';
 import { useHealth } from '../context/HealthContext';
+import { loadUserProfile } from "../storage/localStore";
 
 function riskLevel(value) {
   if (value === null || value === undefined) return { label: "연결 안됨.", color: "#6B7280", dot: "⚪" };
@@ -62,34 +63,17 @@ function ImprovedScreen({ setScreen, setTab, back }) {
     return <div style={{ padding: 20, textAlign: "center" }}>로딩 중...</div>;
   }
 
-  const oUser = originalUser || user;
+  const oUser = loadUserProfile() || originalUser || user;
+  const simInputs = simulationResult?.simulatedInputs || {};
 
-  // 현재 유지 시 건강나이
-  const currentHealthAge = user.healthAge ?? (user.age !== null && user.age !== undefined ? user.age + 5 : null);
-  const keepAge = currentHealthAge;
+  const originalScore = risks?.vitality_score ?? risks?.healthScore ?? null;
+  const simScore = simulationResult?.vitality_score ?? originalScore;
 
-  // 행동 변화 후 건강나이
-  let impAge = null;
-  if (user.age !== null && user.age !== undefined) {
-    if (simulationResult &&
-        simulationResult.diabetes !== null && simulationResult.diabetes !== undefined &&
-        simulationResult.hypertension !== null && simulationResult.hypertension !== undefined) {
-      const rawAge = user.age + Math.round(
-        (simulationResult.diabetes + simulationResult.hypertension) / 20 - 3
-      );
-      impAge = Math.max(user.age, rawAge);
-    } else {
-      impAge = user.age + 2;
-    }
-    // 두 나이가 같거나 impAge가 keepAge 이상이면 1 감소
-    if (keepAge !== null && impAge >= keepAge) {
-      impAge = keepAge - 1;
-    }
-  }
+  // risks와 simulationResult 모두 HealthContext에서 동일한 정규화 적용됨 (0~100 정수)
+  const targetRisksForCalc = simulationResult ?? risks;
 
-  const targetRisks = simulationResult || risks;
   const futBefore = calcFutureRisk(risks, oUser);
-  const futAfter = calcFutureRisk(targetRisks, user);
+  const futAfter  = calcFutureRisk(targetRisksForCalc, oUser);
 
   const items = [
     { label: "당뇨",     now: futBefore.diabetes,     then: futAfter.diabetes },
@@ -98,16 +82,21 @@ function ImprovedScreen({ setScreen, setTab, back }) {
     { label: "비만",     now: futBefore.obesity,      then: futAfter.obesity },
   ];
 
-  // 시뮬레이션 요약 텍스트 동적 생성
+  // 시뮬레이션 요약 텍스트 동적 생성 (스냅샷 비교)
   const summaryItems = [];
-  if (user.weight < oUser.weight)
-    summaryItems.push(`체중 ${oUser.weight}kg → ${user.weight}kg 감량 목표`);
-  if (user.smoking === "비흡연" && oUser.smoking !== "비흡연")
+  const simWeight = simInputs.weight !== undefined ? simInputs.weight : oUser.weight;
+  const simSmoking = simInputs.smoking !== undefined ? simInputs.smoking : oUser.smoking;
+  const simExercise = simInputs.exercise !== undefined ? simInputs.exercise : oUser.exercise;
+  const simDrinking = simInputs.drinking !== undefined ? simInputs.drinking : oUser.drinking;
+
+  if (simWeight < oUser.weight)
+    summaryItems.push(`체중 ${oUser.weight}kg → ${simWeight}kg 감량 목표`);
+  if (simSmoking === "비흡연" && oUser.smoking !== "비흡연")
     summaryItems.push("흡연 → 금연으로 전환");
-  if (user.exercise !== oUser.exercise)
-    summaryItems.push(`운동빈도 ${oUser.exercise} → ${user.exercise} 증가`);
-  if (user.drinking !== oUser.drinking)
-    summaryItems.push(`음주 ${oUser.drinking} → ${user.drinking} 감소`);
+  if (simExercise !== oUser.exercise)
+    summaryItems.push(`운동빈도 ${oUser.exercise} → ${simExercise} 증가`);
+  if (simDrinking !== oUser.drinking)
+    summaryItems.push(`음주 ${oUser.drinking} → ${simDrinking} 감소`);
   if (summaryItems.length === 0)
     summaryItems.push("현재 생활습관 유지 시 예측 결과입니다");
 
@@ -133,7 +122,7 @@ function ImprovedScreen({ setScreen, setTab, back }) {
                     <rect x="33" y="56" width="11" height="20" rx="5" fill="#FCA5A5"/>
                   </svg>
                 </div>
-                <p style={{ color: "#EF4444", fontWeight: 600, fontSize: 13 }}>건강나이 {keepAge !== null ? `${keepAge}세` : "연결 안됨."}</p>
+                <p style={{ color: "#EF4444", fontWeight: 600, fontSize: 13 }}>활력 지수 {originalScore !== null ? `${originalScore}점` : "연결 안됨."}</p>
               </div>
               <div style={{ display: "flex", alignItems: "center", flexDirection: "column", justifyContent: "center", color: "#10B981", fontSize: 12, lineHeight: "1.4" }}>
                 <span>→</span><span>개선 후</span>
@@ -150,7 +139,7 @@ function ImprovedScreen({ setScreen, setTab, back }) {
                     <rect x="33" y="53" width="10" height="22" rx="5" fill="#93C5FD"/>
                   </svg>
                 </div>
-                <p style={{ color: "#2563EB", fontWeight: 600, fontSize: 13 }}>건강나이 {impAge !== null ? `${impAge}세` : "연결 안됨."}</p>
+                <p style={{ color: "#2563EB", fontWeight: 600, fontSize: 13 }}>활력 지수 {simScore !== null ? `${simScore}점` : "연결 안됨."}</p>
               </div>
             </div>
             

@@ -135,9 +135,36 @@ function CoachScreen({ setScreen }) {
         ))}
         {loading && (
           <div style={{ display: "flex", justifyContent: "flex-start" }}>
+            <style>{`
+              @keyframes bounceDot {
+                0%, 100% { transform: translateY(0); }
+                50% { transform: translateY(-5px); }
+              }
+              .dot-bounce {
+                display: inline-block;
+                width: 6px;
+                height: 6px;
+                background-color: #9CA3AF;
+                border-radius: 50%;
+                margin: 0 2px;
+                animation: bounceDot 0.8s infinite ease-in-out;
+              }
+              .dot-bounce:nth-child(1) { animation-delay: -0.32s; }
+              .dot-bounce:nth-child(2) { animation-delay: -0.16s; }
+            `}</style>
             <div style={{ maxWidth: "80%" }}>
-              <div style={{ background: "#F3F4F6", color: "#111", borderRadius: "16px 16px 16px 4px", padding: "12px 14px", fontSize: 14, lineHeight: 1.5 }}>
-                ...
+              <div style={{ 
+                background: "#F3F4F6", 
+                borderRadius: "16px 16px 16px 4px", 
+                padding: "16px 22px", 
+                display: "flex", 
+                alignItems: "center", 
+                gap: 2, 
+                height: 22
+              }}>
+                <div className="dot-bounce"></div>
+                <div className="dot-bounce"></div>
+                <div className="dot-bounce"></div>
               </div>
             </div>
           </div>

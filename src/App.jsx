@@ -123,13 +123,14 @@ function AppContent() {
     // 후속 호환성 연산
     const calculated = analysisResult ? {
       bmi: analysisResult.bmi,
-      healthScore: analysisResult.healthScore,
-      healthAge: analysisResult.healthAge,
+      vitality_score: analysisResult.vitality_score,
+      healthScore: analysisResult.vitality_score,
+      healthAge: analysisResult.healthAge ?? analysisResult.health_age ?? age,
       risks: {
-        diabetes: analysisResult.diabetes,
-        hypertension: analysisResult.hypertension,
-        metabolic: analysisResult.metabolic,
-        obesity: analysisResult.obesity
+        diabetes: analysisResult.diabetes_prob !== undefined ? analysisResult.diabetes_prob * 100 : analysisResult.diabetes,
+        hypertension: analysisResult.hypertension_prob !== undefined ? analysisResult.hypertension_prob * 100 : analysisResult.hypertension,
+        metabolic: analysisResult.metabolic ?? 10,
+        obesity: analysisResult.obesity_status !== undefined ? (analysisResult.obesity_status === 1 ? 75 : 10) : analysisResult.obesity
       }
     } : calculateHealthData({
       ...finalData,
@@ -138,17 +139,21 @@ function AppContent() {
     }, age);
 
     const finalRisks = analysisResult ? {
-      diabetes: analysisResult.diabetes,
-      hypertension: analysisResult.hypertension,
-      metabolic: analysisResult.metabolic,
-      obesity: analysisResult.obesity
+      diabetes: analysisResult.diabetes_prob !== undefined ? analysisResult.diabetes_prob * 100 : analysisResult.diabetes,
+      hypertension: analysisResult.hypertension_prob !== undefined ? analysisResult.hypertension_prob * 100 : analysisResult.hypertension,
+      metabolic: analysisResult.metabolic ?? 10,
+      obesity: analysisResult.obesity_status !== undefined ? (analysisResult.obesity_status === 1 ? 75 : 10) : analysisResult.obesity
     } : calculated.risks;
 
     const finalBmi = analysisResult?.bmi ?? calculated.bmi;
+    const finalHealthAge = calculated.healthAge;
 
     const updatedUser = {
       ...userProfileData,
-      ...(analysisResult || {}),
+      vitality_score: analysisResult?.vitality_score,
+      healthScore: analysisResult?.vitality_score,
+      healthAge: finalHealthAge,
+      bmi: finalBmi,
       persona: `${regionVal} ${districtVal}에 사는 ${finalData.age}세 ${finalData.gender}`,
       personaTags: [finalData.gender, `${finalData.age}세`, regionVal, districtVal, finalData.smoking, finalBmi >= 25 ? "비만" : "정상"],
       createdAt: new Date().toISOString()

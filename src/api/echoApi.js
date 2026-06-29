@@ -14,6 +14,20 @@ export async function analyzeHealth(userData) {
   }
 }
 
+export async function simulateHealth(userData) {
+  try {
+    const res = await fetch(`${BASE_URL}/simulate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(userData)
+    });
+    return await res.json();
+  } catch (e) {
+    console.error("simulateHealth error:", e);
+    return null;
+  }
+}
+
 export async function getPlan(analysisResult) {
   try {
     const params = new URLSearchParams({

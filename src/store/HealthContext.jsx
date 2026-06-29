@@ -1,5 +1,16 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { MOCK_PLAN, MOCK_BENEFITS } from "../mock/mockData";
+import {
+  saveUserProfile,
+  loadUserProfile,
+  saveAnalysisResult,
+  loadAnalysisResult,
+  saveSimulationResult,
+  loadSimulationResult,
+  saveWeeklyGoals,
+  loadWeeklyGoals,
+  clearAll
+} from "../storage/localStore";
 
 const HealthContext = createContext(null);
 
@@ -7,64 +18,65 @@ const MOCK_USER = null;
 const MOCK_RISKS = null;
 
 export const calculateHealthData = (finalData, currentAge) => {
-  const age = Number(currentAge || finalData.age || 20);
-  const height = Number(finalData.height || 170);
-  const weight = Number(finalData.weight || 70);
-  const heightInMeters = height / 100;
-  const bmi = Number((weight / (heightInMeters * heightInMeters)).toFixed(1));
-  
-  const systolicVal = Number(finalData.systolic || (finalData.bloodPressure?.systolic) || 120);
-  const diastolicVal = Number(finalData.diastolic || (finalData.bloodPressure?.diastolic) || 80);
-  
-  // 감점제 기반 건강 점수 계산 (만점 100점, 최소 30점)
-  let bmiPen = 0;
-  if (bmi >= 30) bmiPen = 15;
-  else if (bmi >= 25) bmiPen = 10;
-  else if (bmi >= 23) bmiPen = 5;
-  else if (bmi < 18.5) bmiPen = 5;
-
-  let bpPen = 0;
-  if (systolicVal >= 140 || diastolicVal >= 90) bpPen = 15;
-  else if (systolicVal >= 130 || diastolicVal >= 81) bpPen = 10;
-  else if (systolicVal >= 120 || diastolicVal === 80) bpPen = 5;
-
-  let smokePen = 0;
-  if (finalData.smoking === "현재 흡연") smokePen = 12;
-  else if (finalData.smoking === "과거 흡연") smokePen = 3;
-
-  let drinkPen = 0;
-  if (finalData.drinking === "주 3회 이상") drinkPen = 10;
-  else if (finalData.drinking === "주 1-2회" || finalData.drinking === "주 1~2회") drinkPen = 5;
-  else if (finalData.drinking === "월 1-3회") drinkPen = 2;
-
-  let exePen = 0;
-  if (finalData.exercise === "거의 안 함") exePen = 10;
-  else if (finalData.exercise === "주 1~2회" || finalData.exercise === "주 1-2회") exePen = 5;
-
-  const healthScore = Math.max(30, 100 - (bmiPen + bpPen + smokePen + drinkPen + exePen));
-  
-  // 건강 나이 계산
-  const ageDiff = Math.round((75 - healthScore) * 0.25);
-  const healthAge = Math.max(age - 5, age + ageDiff);
-
-  // 위험도 연산 비례 로직 (5% ~ 95% 제한)
-  const diabetesRisk = Math.min(95, Math.round(15 + (bmi - 22) * 4 + (age - 20) * 0.4 + (finalData.smoking !== "비흡연" ? 8 : 0)));
-  const hypertensionRisk = Math.min(95, Math.round(20 + (systolicVal - 110) * 1.2 + (bmi - 22) * 2.5 + (age - 20) * 0.5));
-  const metabolicRisk = Math.min(95, Math.round(10 + (bmi - 22) * 4.5 + (age - 20) * 0.3));
-  const obesityRisk = Math.min(95, Math.round(bmi >= 25 ? 85 : 15 + (bmi - 22) * 7.5));
-
   return {
-    bmi,
-    healthScore,
-    healthAge,
+    bmi: finalData.bmi ?? null,
+    vitality_score: finalData.vitality_score ?? null,
+    healthScore: finalData.vitality_score ?? null,
+    healthAge: finalData.healthAge ?? finalData.age ?? null,
     risks: {
-      diabetes: Math.max(5, diabetesRisk),
-      hypertension: Math.max(5, hypertensionRisk),
-      metabolic: Math.max(5, metabolicRisk),
-      obesity: Math.max(5, obesityRisk)
+      diabetes: finalData.diabetes_prob ?? finalData.diabetes ?? null,
+      hypertension: finalData.hypertension_prob ?? finalData.hypertension ?? null,
+      metabolic: finalData.metabolic ?? null,
+      obesity: finalData.obesity_status ?? finalData.obesity ?? null
     }
   };
 };
+
+/**
+ * 백엔드 API 응답(또는 localStorage 저장 데이터)을 받아
+ * 모든 위험도 수치를 정수 백분율(0~100)로 정규화한 predictedProfile 객체를 반환합니다.
+ * - diabetes_prob / hypertension_prob : 소수(0~1) → *100 정수
+ * - obesity_status : 이진(0/1) → 10 또는 75
+ * - 이미 정수 백분율인 경우에도 안전하게 처리
+ */
+export function normalizePredictedProfile(raw) {
+  if (!raw) return null;
+
+  const toPct = (val) => {
+    if (val === null || val === undefined) return null;
+    const n = Number(val);
+    if (isNaN(n)) return null;
+    // 0 이상 1 이하(소수 확률) → ×100, 그 외(이미 정수 백분율)는 반올림
+    return Math.round(n <= 1.0 ? n * 100 : n);
+  };
+
+  const diabetesRaw = raw.diabetes_prob !== undefined ? raw.diabetes_prob : raw.diabetes;
+  const hyperRaw    = raw.hypertension_prob !== undefined ? raw.hypertension_prob : raw.hypertension;
+
+  let obesityPct = null;
+  if (raw.obesity_status !== undefined && raw.obesity_status !== null) {
+    obesityPct = Number(raw.obesity_status) === 1 ? 75 : 10;
+  } else if (raw.obesity !== null && raw.obesity !== undefined) {
+    obesityPct = toPct(raw.obesity);
+  }
+
+  const metabolicVal = raw.metabolic !== undefined && raw.metabolic !== null
+    ? Math.round(Number(raw.metabolic))
+    : 10;
+
+  const scoreVal = raw.vitality_score !== undefined ? raw.vitality_score : raw.healthScore;
+
+  return {
+    diabetes:      toPct(diabetesRaw),
+    hypertension:  toPct(hyperRaw),
+    metabolic:     metabolicVal,
+    obesity:       obesityPct,
+    bmi:           raw.bmi ?? null,
+    vitality_score: scoreVal ?? null,
+    healthScore:   scoreVal ?? null,
+    healthAge:     raw.healthAge ?? raw.health_age ?? null
+  };
+}
 
 const DEFAULT_WEEKLY_PLANS = [
   {
@@ -207,10 +219,8 @@ export const generateDynamicNotifications = (user, notifEnabled = true) => {
 export function HealthProvider({ children }) {
   // 1. userProfile 상태 및 로컬스토리지
   const [userProfile, setUserProfile] = useState(() => {
-    const savedNew = localStorage.getItem("echo-health-user-profile");
-    if (savedNew) {
-      try { return JSON.parse(savedNew); } catch(e){}
-    }
+    const saved = loadUserProfile();
+    if (saved) return saved;
     return {
       name: "",
       profileImage: null,
@@ -229,28 +239,31 @@ export function HealthProvider({ children }) {
   });
 
   useEffect(() => {
-    localStorage.setItem("echo-health-user-profile", JSON.stringify(userProfile));
+    saveUserProfile(userProfile);
   }, [userProfile]);
 
   // 2. predictedProfile 상태 및 로컬스토리지
+  // 로드 시 normalizePredictedProfile 적용 → 구 포맷(소수점) 데이터 자동 마이그레이션
   const [predictedProfile, setPredictedProfileState] = useState(() => {
-    const savedNew = localStorage.getItem("echo-health-predicted-profile");
-    if (savedNew) {
-      try { return JSON.parse(savedNew); } catch(e){}
-    }
+    const saved = loadAnalysisResult();
+    if (saved) return normalizePredictedProfile(saved) ?? {
+      diabetes: null, hypertension: null, metabolic: null,
+      obesity: null, bmi: null, vitality_score: null, healthScore: null, healthAge: null
+    };
     return {
       diabetes: null,
       hypertension: null,
       metabolic: null,
       obesity: null,
       bmi: null,
+      vitality_score: null,
       healthScore: null,
       healthAge: null
     };
   });
 
   useEffect(() => {
-    localStorage.setItem("echo-health-predicted-profile", JSON.stringify(predictedProfile));
+    saveAnalysisResult(predictedProfile);
   }, [predictedProfile]);
 
   // 3. 추가 상태
@@ -279,19 +292,11 @@ export function HealthProvider({ children }) {
   }, [plan]);
 
   const [weeklyGoals, setWeeklyGoals] = useState(() => {
-    const saved = localStorage.getItem("echo-health-weekly-goals");
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {
-        console.error("Failed to parse weekly goals", e);
-      }
-    }
-    return { steps: 8000, exerciseMinutes: 30 };
+    return loadWeeklyGoals() || { steps: 8000, exerciseMinutes: 30 };
   });
 
   useEffect(() => {
-    localStorage.setItem("echo-health-weekly-goals", JSON.stringify(weeklyGoals));
+    saveWeeklyGoals(weeklyGoals);
   }, [weeklyGoals]);
 
   const [planGenerated, setPlanGenerated] = useState(() => {
@@ -397,22 +402,14 @@ export function HealthProvider({ children }) {
   }, [hasOnboarded]);
 
   const [simulationResult, setSimulationResult] = useState(() => {
-    const saved = localStorage.getItem("echo-health-simulation-result");
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {
-        console.error("Failed to parse simulation result", e);
-      }
-    }
-    return null;
+    return loadSimulationResult();
   });
 
   useEffect(() => {
     if (simulationResult) {
-      localStorage.setItem("echo-health-simulation-result", JSON.stringify(simulationResult));
+      saveSimulationResult(simulationResult);
     } else {
-      localStorage.removeItem("echo-health-simulation-result");
+      localStorage.removeItem("@echo:simulationResult");
     }
   }, [simulationResult]);
 
@@ -558,27 +555,15 @@ export function HealthProvider({ children }) {
   const setPredictedProfile = (result) => {
     if (result === null) {
       setPredictedProfileState({
-        diabetes: null,
-        hypertension: null,
-        metabolic: null,
-        obesity: null,
-        bmi: null,
-        healthScore: null,
-        healthAge: null
+        diabetes: null, hypertension: null, metabolic: null,
+        obesity: null, bmi: null, vitality_score: null, healthScore: null, healthAge: null
       });
-      setRisksUpdatedAt(Date.now());
     } else {
-      setPredictedProfileState({
-        diabetes: result.diabetes ?? null,
-        hypertension: result.hypertension ?? null,
-        metabolic: result.metabolic ?? null,
-        obesity: result.obesity ?? null,
-        bmi: result.bmi ?? null,
-        healthScore: result.healthScore ?? null,
-        healthAge: result.healthAge ?? null
-      });
-      setRisksUpdatedAt(Date.now());
+      // normalizePredictedProfile로 단일 경로 정규화
+      const normalized = normalizePredictedProfile(result);
+      if (normalized) setPredictedProfileState(normalized);
     }
+    setRisksUpdatedAt(Date.now());
   };
 
   const updatePlan = (result) => {
@@ -586,41 +571,77 @@ export function HealthProvider({ children }) {
       setPlan(null);
       setWeeklyGoals({ steps: 8000, exerciseMinutes: 30 });
       setPlanGenerated(false);
-    } else if (Array.isArray(result)) {
-      setPlan({ data: result, generatedAt: Date.now() });
-      setPlanGenerated(true);
+      return;
+    }
+
+    let planData = null;
+    let generatedAt = Date.now();
+    let steps = null;
+    let exerciseMinutes = null;
+
+    if (Array.isArray(result)) {
+      planData = result;
     } else if (result && result.plan) {
-      setPlan({
-        data: result.plan,
-        generatedAt: result.generatedAt || Date.now()
-      });
+      planData = result.plan;
+      generatedAt = result.generatedAt || Date.now();
       if (result.weeklyGoals) {
-        setWeeklyGoals({
-          steps: result.weeklyGoals.steps ?? 8000,
-          exerciseMinutes: result.weeklyGoals.exerciseMinutes ?? 30
-        });
+        steps = result.weeklyGoals.steps;
+        exerciseMinutes = result.weeklyGoals.exerciseMinutes;
       }
-      setPlanGenerated(true);
     } else if (result && result.data) {
-      setPlan({
-        data: result.data,
-        generatedAt: result.generatedAt || Date.now()
-      });
+      planData = result.data;
+      generatedAt = result.generatedAt || Date.now();
       if (result.weeklyGoals) {
-        setWeeklyGoals({
-          steps: result.weeklyGoals.steps ?? 8000,
-          exerciseMinutes: result.weeklyGoals.exerciseMinutes ?? 30
-        });
+        steps = result.weeklyGoals.steps;
+        exerciseMinutes = result.weeklyGoals.exerciseMinutes;
       }
-      setPlanGenerated(true);
     } else {
       setPlan(result);
       setPlanGenerated(true);
+      return;
     }
+
+    // 플랜의 상세 items 내부 텍스트에서 걸음수 목표 파싱 시도 (예: "매일 10000보 걷기", "하루 8000보 달성")
+    if (planData && Array.isArray(planData)) {
+      for (const w of planData) {
+        if (w.items && Array.isArray(w.items)) {
+          for (const item of w.items) {
+            const match = item.replace(/,/g, "").match(/(\d+)\s*(?:보|걸음)/);
+            if (match) {
+              const val = parseInt(match[1], 10);
+              if (val >= 1000 && val <= 30000) {
+                steps = val;
+                break;
+              }
+            }
+          }
+        }
+        if (steps) break;
+      }
+    }
+
+    setPlan({
+      data: planData,
+      generatedAt: generatedAt
+    });
+
+    setWeeklyGoals(prev => ({
+      steps: steps ?? prev.steps ?? 8000,
+      exerciseMinutes: exerciseMinutes ?? prev.exerciseMinutes ?? 30
+    }));
+
+    setPlanGenerated(true);
   };
 
   const updateSimulationResult = (result) => {
-    setSimulationResult(result);
+    // 시뮬레이션 결과도 같은 정규화 적용
+    if (result) {
+      const normalized = normalizePredictedProfile(result);
+      // 원본 필드(simulatedInputs 등)는 유지하고 위험도 수치만 정규화
+      setSimulationResult({ ...result, ...normalized });
+    } else {
+      setSimulationResult(null);
+    }
   };
 
   const updateWearData = (data) => {
@@ -631,6 +652,8 @@ export function HealthProvider({ children }) {
   const user = {
     ...userProfile,
     ...predictedProfile,
+    // healthAge: predictedProfile 우선, 없으면 userProfile의 값 사용
+    healthAge: predictedProfile?.healthAge ?? userProfile?.healthAge ?? null,
     persona: `${userProfile?.region || ""} ${userProfile?.district || ""}에 사는 ${userProfile?.age || ""}세 ${userProfile?.gender || ""}`,
     personaTags: [
       userProfile?.gender,
@@ -755,6 +778,7 @@ export function HealthProvider({ children }) {
         setUserProfile,
         predictedProfile,
         setPredictedProfile,
+        updateAnalysisResult: setPredictedProfile,
         weeklyGoals,
         setWeeklyGoals,
         updateUserProfile

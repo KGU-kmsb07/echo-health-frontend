@@ -372,7 +372,7 @@ function PlanScreen({ setScreen }) {
                             type="checkbox" 
                             checked={isChecked}
                             onChange={() => handleTodoToggle(currentWeek, item)}
-                            style={{ width: 18, height: 18, cursor: "pointer", accentColor: weekColor }}
+                            style={{ width: 18, height: 18, cursor: "pointer", accentColor: weekColor, flexShrink: 0 }}
                           />
                           <span style={{
                             fontSize: 14,

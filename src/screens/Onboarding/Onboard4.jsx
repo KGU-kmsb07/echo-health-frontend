@@ -2,9 +2,10 @@ import { useState } from "react";
 import S from '../../styles/shared';
 import { useHealth } from '../../context/HealthContext';
 import { analyzeHealth } from '../../api/echoApi';
+import { saveAnalysisResult } from '../../storage/localStore';
 
 function Onboard4({ next, back }) {
-  const { user, setRisks: updateRisks, updateUser, showLoading, hideLoading, isEditMode } = useHealth();
+  const { user, updateAnalysisResult, updateUser, showLoading, hideLoading, isEditMode } = useHealth();
   const [smoking, setSmoking] = useState(user?.smoking || "");
   const [drinking, setDrinking] = useState(user?.drinking || "");
   const [exercise, setExercise] = useState(user?.exercise || "");
@@ -31,7 +32,6 @@ function Onboard4({ next, back }) {
         height_cm: Number(user.height),
         weight_kg: Number(user.weight),
         waist_cm: Number(user.waist) || 80,
-        bmi: user.bmi || Number(user.weight) / ((Number(user.height) / 100) ** 2),
         systolic_bp: user.bloodPressure?.systolic || 120,
         diastolic_bp: user.bloodPressure?.diastolic || 80,
         fasting_glucose: 90,
@@ -48,15 +48,11 @@ function Onboard4({ next, back }) {
 
       if (result && !result.error) {
         apiResult = result;
-        updateRisks({
-          diabetes: result.diabetes,
-          hypertension: result.hypertension,
-          metabolic: result.metabolic,
-          obesity: result.obesity
-        });
+        updateAnalysisResult(result);
+        saveAnalysisResult(result);
         updateUser({
-          healthScore: result.healthScore,
-          healthAge: result.healthAge,
+          vitality_score: result.vitality_score,
+          healthScore: result.vitality_score, // 하위 호환
           bmi: result.bmi
         });
       } else {

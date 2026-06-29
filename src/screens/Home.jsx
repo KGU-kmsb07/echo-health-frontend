@@ -37,6 +37,7 @@ const getPlanProgress = (startDateStr) => {
 
 function HomeScreen({ setScreen, setTab }) {
   const { user, risks, plan, notifications, setNotifications, todoCheckedState, planStartDate, weeklyGoals } = useHealth();
+  // risks는 HealthContext.setPredictedProfile에서 이미 백분율 정수(0~100)로 정규화됨
   const [showNotif, setShowNotif] = useState(false);
   const [startY, setStartY] = useState(0);
 
@@ -125,21 +126,21 @@ function HomeScreen({ setScreen, setTab }) {
             <p style={{ fontSize: 13, color: "#6B7280", marginBottom: 8 }}>오늘의 건강 점수</p>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
               <div>
-                <span style={{ fontSize: 48, fontWeight: 800, color: "#10B981" }}>{user.healthScore ?? "연결 안됨."}</span>
+                <span style={{ fontSize: 48, fontWeight: 800, color: "#10B981" }}>{risks?.vitality_score ?? "연결 안됨."}</span>
                 <span style={{ fontSize: 16, color: "#9CA3AF" }}>/100</span>
               </div>
               <div style={{ position: "relative", width: 80, height: 80 }}>
                 <svg width="80" height="80" viewBox="0 0 80 80">
                   <circle cx="40" cy="40" r="30" fill="none" stroke="#F3F4F6" strokeWidth="8" />
                   <circle cx="40" cy="40" r="30" fill="none" stroke="#F59E0B" strokeWidth="8"
-                    strokeDasharray={`${2 * Math.PI * 30 * ((user.healthScore ?? 0) / 100)} ${2 * Math.PI * 30 * (1 - (user.healthScore ?? 0) / 100)}`}
+                    strokeDasharray={`${2 * Math.PI * 30 * ((risks?.vitality_score ?? 0) / 100)} ${2 * Math.PI * 30 * (1 - (risks?.vitality_score ?? 0) / 100)}`}
                     strokeLinecap="round" transform="rotate(-90 40 40)" />
                 </svg>
                 <span style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%,-50%)", fontSize: 20 }}>😊</span>
               </div>
             </div>
             <div style={{ display: "flex", gap: 24, marginTop: 8 }}>
-              <div><p style={{ fontSize: 11, color: "#9CA3AF", margin: 0 }}>건강 나이</p><p style={{ fontWeight: 700, margin: 0 }}>{user.healthAge !== null ? `${user.healthAge}세` : "연결 안됨."}</p></div>
+              <div><p style={{ fontSize: 11, color: "#9CA3AF", margin: 0 }}>건강 나이</p><p style={{ fontWeight: 700, margin: 0 }}>{(risks?.healthAge !== null && risks?.healthAge !== undefined) ? `${risks.healthAge}세` : "연결 안됨."}</p></div>
               <div><p style={{ fontSize: 11, color: "#9CA3AF", margin: 0 }}>실제 나이</p><p style={{ fontWeight: 700, margin: 0 }}>{user.age !== null ? `${user.age}세` : "연결 안됨."}</p></div>
             </div>
           </div>
