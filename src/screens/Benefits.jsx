@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import S from '../styles/shared';
 import { useHealth } from '../context/HealthContext';
+import { loadMileage } from '../storage/localStore';
 
 const REGIONS = {
   "서울": ["강남구","강동구","강북구","강서구","관악구","광진구","구로구",
@@ -31,18 +32,45 @@ const REGION_NAMES = Object.keys(REGIONS);
 
 function BenefitsScreen() {
   const { user, benefits } = useHealth();
+  const [activeSubTab, setActiveSubTab] = useState(() => {
+    const savedTab = localStorage.getItem("echo-health-benefits-tab");
+    return savedTab === "local" ? "local" : "mileage";
+  }); // "mileage" or "local"
   const [filter, setFilter] = useState("전체");
-  const [selectedRegion, setSelectedRegion] = useState(user?.region || "");
-  const [selectedDistrict, setSelectedDistrict] = useState(user?.district || "");
+  const [selectedRegion, setSelectedRegion] = useState("");
+  const [selectedDistrict, setSelectedDistrict] = useState("");
+  const [mileageData, setMileageData] = useState({ total: 0, logs: [] });
 
-  if (!user || !benefits) {
+  const refreshMileage = () => {
+    const data = loadMileage();
+    setMileageData(data);
+  };
+
+  useEffect(() => {
+    // 탭 전환 및 화면 진입 시 마일리지 데이터 즉시 갱신
+    refreshMileage();
+    localStorage.setItem("echo-health-benefits-tab", activeSubTab);
+  }, [activeSubTab]);
+
+  // 화면 포커스/가시성 변경 시 실시간 갱신 (플랜 탭에서 돌아올 때)
+  useEffect(() => {
+    const onVisible = () => { if (document.visibilityState === 'visible') refreshMileage(); };
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('focus', refreshMileage);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('focus', refreshMileage);
+    };
+  }, []);
+
+  if (!user) {
     return <div style={{ padding: 20, textAlign: "center" }}>로딩 중...</div>;
   }
 
   const districts = selectedRegion ? (REGIONS[selectedRegion] || []) : [];
 
   // 선택된 지역 기준 혜택 필터링
-  const filteredBenefits = benefits.filter(b => {
+  const filteredBenefits = (benefits || []).filter(b => {
     if (filter === "지역") {
       if (!selectedRegion) return false;
       const regionMatch = b.region
@@ -61,51 +89,130 @@ function BenefitsScreen() {
     ? `${selectedRegion}${selectedDistrict ? " " + selectedDistrict : ""}`
     : "지역 미선택";
 
+  const getLogTypeLabel = (type) => {
+    switch (type) {
+      case 'todo_check': return '개별 실천 완료';
+      case 'day_complete': return '일일 전체 완료 보너스';
+      case 'day_final': return '일일 전체 완료 보너스';
+      case 'week_streak': return '7일 연속 달성 보너스';
+      case 'program_complete': return '4주 종합 달성 보너스';
+      case 'plan_cancel': return '플랜 취소 차감';
+      default: return '포인트 적립';
+    }
+  };
+
   return (
     <div style={S.screen}>
-      <div style={S.scrollArea}>
-        <div style={{ padding: "20px 16px 16px" }}>
-          <h2 style={{ fontWeight: 700, fontSize: 20, margin: "0 0 2px" }}>숨겨진 건강 혜택</h2>
-          <p style={{ fontSize: 13, color: "#6B7280", margin: "0 0 14px" }}>
-            📍 {locationLabel} 기준 혜택
-          </p>
+      <div style={{ ...S.topBar, borderBottom: "1px solid #F3F4F6", flexShrink: 0 }}>
+        {/* 상단 탭 헤더 */}
+        <div style={{ display: "flex", textAlign: "center" }}>
+          <button 
+            onClick={() => setActiveSubTab("mileage")}
+            style={{
+              flex: 1, padding: "14px 0", border: "none", background: "none",
+              fontSize: 15, fontWeight: activeSubTab === "mileage" ? 700 : 500,
+              color: activeSubTab === "mileage" ? "#2563EB" : "#6B7280",
+              borderBottom: activeSubTab === "mileage" ? "3px solid #2563EB" : "3px solid transparent",
+              cursor: "pointer"
+            }}
+          >
+            건강 마일리지
+          </button>
+          <button 
+            onClick={() => setActiveSubTab("local")}
+            style={{
+              flex: 1, padding: "14px 0", border: "none", background: "none",
+              fontSize: 15, fontWeight: activeSubTab === "local" ? 700 : 500,
+              color: activeSubTab === "local" ? "#2563EB" : "#6B7280",
+              borderBottom: activeSubTab === "local" ? "3px solid #2563EB" : "3px solid transparent",
+              cursor: "pointer"
+            }}
+          >
+            우리동네 건강 혜택
+          </button>
+        </div>
+      </div>
 
-          {/* 지역 선택 */}
-          <div style={{ marginBottom: 16 }}>
-            <p style={{ fontSize: 12, fontWeight: 600, color: "#374151", margin: "0 0 6px" }}>지역 선택</p>
-            {/* 시/도 드롭다운 */}
-            <select
-              value={selectedRegion}
-              onChange={e => {
-                setSelectedRegion(e.target.value);
-                setSelectedDistrict("");
-              }}
-              style={{
-                border: "1px solid #E5E7EB", borderRadius: 10,
-                padding: "12px 16px", width: "100%", marginBottom: 8,
-                fontSize: 14, color: selectedRegion ? "#111" : "#9CA3AF",
-                background: "#fff", appearance: "none",
-                backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%239CA3AF' stroke-width='1.5' fill='none'/%3E%3C/svg%3E\")",
-                backgroundRepeat: "no-repeat",
-                backgroundPosition: "right 14px center",
-                cursor: "pointer"
-              }}
-            >
-              <option value="">시/도 선택</option>
-              {REGION_NAMES.map(r => (
-                <option key={r} value={r}>{r}</option>
-              ))}
-            </select>
+      <div style={{ ...S.scrollArea, paddingTop: 52 }}>
+        {activeSubTab === "mileage" ? (
+          /* 마일리지 뷰 */
+          <div style={{ padding: "20px 16px 16px" }}>
+            {/* 총 누적 포인트 대형 카드 */}
+            <div style={{
+              background: "linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%)",
+              borderRadius: 20, padding: 24, color: "#fff", marginBottom: 20,
+              boxShadow: "0 8px 20px rgba(16, 185, 129, 0.2)", textAlign: "center"
+            }}>
+              <p style={{ margin: "0 0 8px", fontSize: 13, opacity: 0.9, fontWeight: 500 }}>나의 누적 건강 마일리지</p>
+              <h1 style={{ margin: 0, fontSize: 36, fontWeight: 800 }}>
+                {mileageData.total.toLocaleString()} <span style={{ fontSize: 18, fontWeight: 500 }}>pt</span>
+              </h1>
+            </div>
 
-            {/* 시/군/구 드롭다운 (해당 시도에 구가 있을 때만) */}
-            {selectedRegion && districts.length > 0 && (
+            {/* 포인트 획득 이력 리스트 */}
+            <div style={S.card}>
+              <p style={{ fontWeight: 700, fontSize: 15, margin: "0 0 12px", color: "#1F2937" }}>포인트 적립 내역</p>
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                {mileageData.logs && mileageData.logs.length > 0 ? (
+                  [...mileageData.logs].reverse().map((log, idx) => (
+                    <div key={idx} style={{
+                      display: "flex", justifyContent: "space-between", alignItems: "center",
+                      paddingBottom: 10, borderBottom: idx === mileageData.logs.length - 1 ? "none" : "1px solid #F3F4F6"
+                    }}>
+                      <div>
+                        <p style={{ fontSize: 13, fontWeight: 600, color: "#374151", margin: "0 0 2px" }}>
+                          {getLogTypeLabel(log.type)}
+                        </p>
+                        <p style={{ fontSize: 11, color: "#9CA3AF", margin: 0 }}>
+                          {log.date || log.todoId || ''}
+                        </p>
+                      </div>
+                      <span style={{ fontSize: 14, fontWeight: 700, color: log.points < 0 ? "#EF4444" : "#2563EB" }}>
+                        {log.points > 0 ? "+" : ""}{log.points} pt
+                      </span>
+                    </div>
+                  ))
+                ) : (
+                  <div style={{ textAlign: "center", padding: "24px 0", color: "#9CA3AF", fontSize: 13 }}>
+                    아직 적립된 마일리지가 없습니다.<br />매일 실천 플랜을 달성하여 포인트를 모아보세요!
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* 중장기 비전 및 연계 안내 문구 */}
+            <div style={{
+              background: "#F3F4F6", borderRadius: 12, padding: 16, border: "1px solid #E5E7EB"
+            }}>
+              <p style={{ fontSize: 12, color: "#4B5563", margin: "0 0 4px", fontWeight: 700 }}>
+                💡 마일리지 활용 안내
+              </p>
+              <p style={{ fontSize: 11, color: "#6B7280", margin: 0, lineHeight: 1.5 }}>
+                꾸준한 실천 기록은 향후 건강 지원금 사업 참여 시 가점 자료로 활용될 수 있습니다. (서비스 확장 시 공공기관 연계 예정)
+              </p>
+            </div>
+          </div>
+        ) : (
+          /* 기존 건강 혜택 뷰 */
+          <div style={{ padding: "20px 16px 16px" }}>
+            <h2 style={{ fontWeight: 700, fontSize: 18, margin: "0 0 2px", color: "#1F2937" }}>지자체 건강 혜택 찾기</h2>
+            <p style={{ fontSize: 12, color: "#6B7280", margin: "0 0 14px" }}>
+              📍 {locationLabel} 기준 혜택
+            </p>
+
+            {/* 지역 선택 */}
+            <div style={{ marginBottom: 16 }}>
+              <p style={{ fontSize: 12, fontWeight: 600, color: "#374151", margin: "0 0 6px" }}>지역 선택</p>
               <select
-                value={selectedDistrict}
-                onChange={e => setSelectedDistrict(e.target.value)}
+                value={selectedRegion}
+                onChange={e => {
+                  setSelectedRegion(e.target.value);
+                  setSelectedDistrict("");
+                }}
                 style={{
                   border: "1px solid #E5E7EB", borderRadius: 10,
                   padding: "12px 16px", width: "100%", marginBottom: 8,
-                  fontSize: 14, color: selectedDistrict ? "#111" : "#9CA3AF",
+                  fontSize: 14, color: selectedRegion ? "#111" : "#9CA3AF",
                   background: "#fff", appearance: "none",
                   backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%239CA3AF' stroke-width='1.5' fill='none'/%3E%3C/svg%3E\")",
                   backgroundRepeat: "no-repeat",
@@ -113,51 +220,73 @@ function BenefitsScreen() {
                   cursor: "pointer"
                 }}
               >
-                <option value="">시/군/구 선택 (전체)</option>
-                {districts.map(d => (
-                  <option key={d} value={d}>{d}</option>
+                <option value="">시/도 선택</option>
+                {REGION_NAMES.map(r => (
+                  <option key={r} value={r}>{r}</option>
                 ))}
               </select>
+
+              {selectedRegion && districts.length > 0 && (
+                <select
+                  value={selectedDistrict}
+                  onChange={e => setSelectedDistrict(e.target.value)}
+                  style={{
+                    border: "1px solid #E5E7EB", borderRadius: 10,
+                    padding: "12px 16px", width: "100%", marginBottom: 8,
+                    fontSize: 14, color: selectedDistrict ? "#111" : "#9CA3AF",
+                    background: "#fff", appearance: "none",
+                    backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%239CA3AF' stroke-width='1.5' fill='none'/%3E%3C/svg%3E\")",
+                    backgroundRepeat: "no-repeat",
+                    backgroundPosition: "right 14px center",
+                    cursor: "pointer"
+                  }}
+                >
+                  <option value="">시/군/구 선택 (전체)</option>
+                  {districts.map(d => (
+                    <option key={d} value={d}>{d}</option>
+                  ))}
+                </select>
+              )}
+            </div>
+
+            {/* 필터 탭 */}
+            <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+              {["전체", "지역", "연령"].map(f => (
+                <button key={f} style={S.chip(filter === f)} onClick={() => setFilter(f)}>{f}</button>
+              ))}
+            </div>
+
+            {/* 혜택 목록 */}
+            {filteredBenefits.length > 0 ? (
+              filteredBenefits.map(b => (
+                <div key={b.id} style={{ ...S.card, cursor: "pointer", marginBottom: 10 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}>
+                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                      {b.tags?.map(t => <span key={t} style={S.tag()}>{t}</span>)}
+                    </div>
+                    <span style={{ color: "#2563EB", fontWeight: 600, fontSize: 13 }}>{b.cost}</span>
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <div>
+                      <p style={{ fontWeight: 600, margin: "0 0 3px" }}>{b.title}</p>
+                      <p style={{ fontSize: 12, color: "#6B7280", margin: 0 }}>{b.desc}</p>
+                    </div>
+                    <span style={{ color: "#9CA3AF" }}>›</span>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div style={{ ...S.card, textAlign: "center", padding: "30px 20px" }}>
+                <div style={{ fontSize: 36, marginBottom: 10 }}>🏙️</div>
+                <p style={{ color: "#9CA3AF", fontSize: 14, margin: "0 0 4px" }}>
+                  {filter === "지역" && !selectedRegion
+                    ? "지역을 선택하면 맞춤 혜택을 확인할 수 있어요."
+                    : "해당 조건에 맞는 혜택이 없습니다."}
+                </p>
+              </div>
             )}
           </div>
-
-          {/* 필터 탭 */}
-          <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
-            {["전체", "지역", "연령"].map(f => (
-              <button key={f} style={S.chip(filter === f)} onClick={() => setFilter(f)}>{f}</button>
-            ))}
-          </div>
-
-          {/* 혜택 목록 */}
-          {filteredBenefits.length > 0 ? (
-            filteredBenefits.map(b => (
-              <div key={b.id} style={{ ...S.card, cursor: "pointer", marginBottom: 10 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}>
-                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                    {b.tags?.map(t => <span key={t} style={S.tag()}>{t}</span>)}
-                  </div>
-                  <span style={{ color: "#10B981", fontWeight: 600, fontSize: 13 }}>{b.cost}</span>
-                </div>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <div>
-                    <p style={{ fontWeight: 600, margin: "0 0 3px" }}>{b.title}</p>
-                    <p style={{ fontSize: 12, color: "#6B7280", margin: 0 }}>{b.desc}</p>
-                  </div>
-                  <span style={{ color: "#9CA3AF" }}>›</span>
-                </div>
-              </div>
-            ))
-          ) : (
-            <div style={{ ...S.card, textAlign: "center", padding: "30px 20px" }}>
-              <div style={{ fontSize: 36, marginBottom: 10 }}>🏙️</div>
-              <p style={{ color: "#9CA3AF", fontSize: 14, margin: "0 0 4px" }}>
-                {filter === "지역" && !selectedRegion
-                  ? "지역을 선택하면 맞춤 혜택을 확인할 수 있어요."
-                  : "해당 조건에 맞는 혜택이 없습니다."}
-              </p>
-            </div>
-          )}
-        </div>
+        )}
       </div>
     </div>
   );

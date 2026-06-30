@@ -43,7 +43,7 @@ function NewResultScreen({ setScreen, back }) {
 
   // 안전 가드: 최초 분석 또는 재분석 이력이 없을 경우 디폴트 맵 활용
   const prevUser = firstResult?.user || { vitality_score: 68, healthScore: 68, healthAge: 29, bmi: 24.1, waist: 85, bloodPressure: { systolic: 128, diastolic: 82 }, sleep: 6, exercise: "주 1~2회" };
-  const prevRisks = firstResult?.risks || { diabetes: 0.31, hypertension: 0.25, metabolic: 10, obesity: 10 };
+  const prevRisks = firstResult?.risks || { diabetes: 0.31, hypertension: 0.25, metabolic: 0.10, obesity: 0 };
   
   const currUser = newResult?.user || prevUser;
   const currRisks = newResult?.risks || prevRisks;
@@ -65,9 +65,17 @@ function NewResultScreen({ setScreen, back }) {
       return { text: "유지", color: "#9CA3AF" };
     }
     // 위험도 지표 (낮아질수록 양호)
-    const isProb = label === "당뇨 위험" || label === "고혈압 위험";
-    const prevPercent = isProb ? prevVal * 100 : prevVal;
-    const currPercent = isProb ? currVal * 100 : currVal;
+    let prevPercent = prevVal;
+    let currPercent = currVal;
+    
+    if (label === "당뇨 위험" || label === "고혈압 위험" || label === "대사증후군") {
+      prevPercent = prevVal * 100;
+      currPercent = currVal * 100;
+    } else if (label === "비만 위험") {
+      prevPercent = prevVal === 1 ? 75 : 10;
+      currPercent = currVal === 1 ? 75 : 10;
+    }
+    
     const dPercent = currPercent - prevPercent;
     
     if (dPercent < 0) return { text: `↘ -${Math.abs(dPercent).toFixed(1)}%p`, color: "#10B981" };
@@ -86,24 +94,25 @@ function NewResultScreen({ setScreen, back }) {
     const sys = Number(bp?.systolic ?? 120);
     const dia = Number(bp?.diastolic ?? 80);
     if (sys >= 140 || dia >= 90) return { status: "고혈압", color: "#DC2626", pct: 100 };
-    if (sys >= 120 || dia >= 80) return { status: "주의", color: "#F59E0B", pct: 66 };
+    if (sys <= 120 && dia <= 80) return { status: "정상", color: "#10B981", pct: 33 };
+    if (sys >= 121 || dia >= 81) return { status: "주의", color: "#F59E0B", pct: 66 };
     return { status: "정상", color: "#10B981", pct: 33 };
   };
 
   const getExerciseInfo = (exercise) => {
-    if (exercise === "주 5회 이상") return { status: "최상", color: "#10B981", pct: 100 };
-    if (exercise === "주 3~4회") return { status: "양호", color: "#10B981", pct: 75 };
-    if (exercise === "주 1~2회") return { status: "보통", color: "#F59E0B", pct: 50 };
+    if (exercise === "매일" || exercise === "주 5회 이상" || exercise === "5일 이상") return { status: "최상", color: "#10B981", pct: 100 };
+    if (exercise === "주 3~4회" || exercise === "주 3-4회" || exercise === "3~4일") return { status: "양호", color: "#10B981", pct: 75 };
+    if (exercise === "주 1~2회" || exercise === "주 1-2회" || exercise === "1~2일") return { status: "보통", color: "#F59E0B", pct: 50 };
     return { status: "부족", color: "#DC2626", pct: 25 };
   };
 
   return (
     <div style={S.screen}>
-      <div style={{ background: "#fff", padding: "16px 20px", display: "flex", alignItems: "center", gap: 12 }}>
+      <div style={{ ...S.topBar, padding: "16px 20px", display: "flex", alignItems: "center", gap: 12, flexShrink: 0, borderBottom: "1px solid #F3F4F6" }}>
         <button onClick={back} style={{ background: "none", border: "none", fontSize: 20, cursor: "pointer" }}>←</button>
         <span style={{ fontWeight: 700, fontSize: 16 }}>새 분석 결과</span>
       </div>
-      <div style={S.scrollArea}>
+      <div style={{ ...S.scrollArea, paddingTop: 57 }}>
         <div style={{ padding: 16 }}>
           <div style={{ background: "#F0FDF4", borderRadius: 10, padding: "10px 14px", marginBottom: 16, color: "#065F46", fontSize: 12 }}>
             ✅ 4주 실천 결과가 건강 수치에 반영됐어요! 🎉
@@ -150,8 +159,8 @@ function NewResultScreen({ setScreen, back }) {
                   { label: "건강 나이", prev: `${prevUser.healthAge}세`, curr: `${currUser.healthAge}세`, valPrev: prevUser.healthAge, valCurr: currUser.healthAge },
                   { label: "당뇨 위험", prev: `${(prevRisks.diabetes * 100).toFixed(1)}%`, curr: `${(currRisks.diabetes * 100).toFixed(1)}%`, valPrev: prevRisks.diabetes, valCurr: currRisks.diabetes },
                   { label: "고혈압 위험", prev: `${(prevRisks.hypertension * 100).toFixed(1)}%`, curr: `${(currRisks.hypertension * 100).toFixed(1)}%`, valPrev: prevRisks.hypertension, valCurr: currRisks.hypertension },
-                  { label: "대사증후군", prev: `${prevRisks.metabolic}%`, curr: `${currRisks.metabolic}%`, valPrev: prevRisks.metabolic, valCurr: currRisks.metabolic },
-                  { label: "비만 위험", prev: `${prevRisks.obesity}%`, curr: `${currRisks.obesity}%`, valPrev: prevRisks.obesity, valCurr: currRisks.obesity },
+                  { label: "대사증후군", prev: `${(prevRisks.metabolic * 100).toFixed(0)}%`, curr: `${(currRisks.metabolic * 100).toFixed(0)}%`, valPrev: prevRisks.metabolic, valCurr: currRisks.metabolic },
+                  { label: "비만 위험", prev: `${prevRisks.obesity === 1 ? 75 : 10}%`, curr: `${currRisks.obesity === 1 ? 75 : 10}%`, valPrev: prevRisks.obesity, valCurr: currRisks.obesity },
                 ].map(r => {
                   const deltaInfo = formatDelta(r.label, r.valPrev, r.valCurr);
                   return (
@@ -199,7 +208,7 @@ function NewResultScreen({ setScreen, back }) {
       {showModal && (
         <div style={{
           position: "fixed", inset: 0,
-          background: "rgba(0,0,0,0.4)", zIndex: 200,
+          background: "rgba(0,0,0,0.4)", zIndex: 400,
           display: "flex", alignItems: "flex-end",
           justifyContent: "center"
         }}>

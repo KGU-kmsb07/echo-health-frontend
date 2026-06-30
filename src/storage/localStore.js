@@ -1,7 +1,7 @@
 const USER_PROFILE_KEY = "@echo:userProfile";
 const ANALYSIS_RESULT_KEY = "@echo:analysisResult";
 const SIMULATION_RESULT_KEY = "@echo:simulationResult";
-const QUEST_LIST_KEY = "@echo:questList";
+const QUEST_LIST_KEY = "@echo:questData";
 const MILEAGE_KEY = "@echo:mileage";
 const WEEKLY_GOALS_KEY = "@echo:weeklyGoals";
 
@@ -53,29 +53,50 @@ export function loadSimulationResult() {
   }
 }
 
-export function saveQuestList(data) {
+export function saveMileage(data) {
+  if (!data) return;
+  localStorage.setItem(MILEAGE_KEY, JSON.stringify(data));
+}
+
+export function loadMileage() {
+  const data = localStorage.getItem(MILEAGE_KEY);
+  if (!data) return { total: 0, logs: [] };
+  try {
+    const parsed = JSON.parse(data);
+    if (parsed && typeof parsed === "object" && "total" in parsed) {
+      return {
+        total: parsed.total || 0,
+        logs: Array.isArray(parsed.logs) ? parsed.logs : []
+      };
+    }
+    // 하위 호환성 (숫자형인 경우)
+    if (!isNaN(data)) {
+      return { total: Number(data), logs: [] };
+    }
+    return { total: 0, logs: [] };
+  } catch (e) {
+    if (!isNaN(data)) {
+      return { total: Number(data), logs: [] };
+    }
+    return { total: 0, logs: [] };
+  }
+}
+
+// QuestData 함수 추가
+export function saveQuestData(data) {
   if (!data) return;
   localStorage.setItem(QUEST_LIST_KEY, JSON.stringify(data));
 }
 
-export function loadQuestList() {
+export function loadQuestData() {
   const data = localStorage.getItem(QUEST_LIST_KEY);
   if (!data) return null;
   try {
     return JSON.parse(data);
   } catch (e) {
-    console.error("Failed to parse quest list from localStorage", e);
+    console.error("Failed to parse quest data from localStorage", e);
     return null;
   }
-}
-
-export function saveMileage(value) {
-  localStorage.setItem(MILEAGE_KEY, String(value));
-}
-
-export function loadMileage() {
-  const data = localStorage.getItem(MILEAGE_KEY);
-  return data ? Number(data) : 0;
 }
 
 export function saveWeeklyGoals(data) {
@@ -92,26 +113,4 @@ export function loadWeeklyGoals() {
     console.error("Failed to parse weekly goals from localStorage", e);
     return null;
   }
-}
-
-export function clearAll() {
-  localStorage.removeItem(USER_PROFILE_KEY);
-  localStorage.removeItem(ANALYSIS_RESULT_KEY);
-  localStorage.removeItem(SIMULATION_RESULT_KEY);
-  localStorage.removeItem(QUEST_LIST_KEY);
-  localStorage.removeItem(MILEAGE_KEY);
-  localStorage.removeItem(WEEKLY_GOALS_KEY);
-  // 기존 레거시 로컬스토리지 키들도 안전하게 지워줍니다.
-  localStorage.removeItem("echo-health-user-profile");
-  localStorage.removeItem("echo-health-predicted-profile");
-  localStorage.removeItem("echo-health-plan");
-  localStorage.removeItem("echo-health-weekly-goals");
-  localStorage.removeItem("echo-health-plan-generated");
-  localStorage.removeItem("echo-health-risks-updated-at");
-  localStorage.removeItem("echo-health-notifications");
-  localStorage.removeItem("echo-health-first-result");
-  localStorage.removeItem("echo-health-new-result");
-  localStorage.removeItem("echo-health-has-reanalyzed");
-  localStorage.removeItem("echo-health-has-onboarded");
-  localStorage.removeItem("echo-health-simulation-result");
 }

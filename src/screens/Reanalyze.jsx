@@ -8,11 +8,19 @@ const restrictInteger = (val, max = 3) => {
   return numOnly.slice(0, max);
 };
 
+const normalizeExerciseOption = (value) => {
+  if (value === "거의 안 함") return "0일";
+  if (value === "주 1~2회" || value === "주 1-2회") return "1~2일";
+  if (value === "주 3~4회" || value === "주 3-4회") return "3~4일";
+  if (value === "주 5회 이상") return "5일 이상";
+  return value || "0일";
+};
+
 function ReanalyzeScreen({ setScreen, back }) {
   const { user, setUser, setRisks, setNewResult, calculateHealthData, addNotification, showLoading, hideLoading, userProfile, updateUserProfile, setPredictedProfile, setHasReanalyzed } = useHealth();
   const [smoking, setSmoking] = useState(user?.smoking || "비흡연");
-  const [drinking, setDrinking] = useState(user?.drinking || "거의 안 함");
-  const [exercise, setExercise] = useState(user?.exercise || "거의 안 함");
+  const [drinking, setDrinking] = useState(user?.drinking || "안함");
+  const [exercise, setExercise] = useState(normalizeExerciseOption(user?.exercise));
   const [sleep, setSleep] = useState(user?.sleep || 7);
 
   // 혈압 상태 선언 및 포커스 관리
@@ -26,17 +34,17 @@ function ReanalyzeScreen({ setScreen, back }) {
   }
   return (
     <div style={S.screen}>
-      <div style={{ background: "#fff", padding: "16px 20px", display: "flex", alignItems: "center", gap: 12 }}>
+      <div style={{ ...S.topBar, padding: "16px 20px", display: "flex", alignItems: "center", gap: 12, flexShrink: 0, borderBottom: "1px solid #F3F4F6" }}>
         <button onClick={back} style={{ background: "none", border: "none", fontSize: 20, cursor: "pointer" }}>←</button>
         <div>
           <span style={{ fontWeight: 700, fontSize: 16 }}>현재 상태를 업데이트해주세요</span>
           <p style={{ fontSize: 12, color: "#6B7280", margin: 0 }}>변화가 있었던 항목만 수정해도 다시 분석할 수 있어요.</p>
         </div>
       </div>
-      <div style={S.scrollArea}>
+      <div style={{ ...S.scrollArea, paddingTop: 74 }}>
         <div style={{ padding: 16 }}>
           <div style={{ background: "#EFF6FF", borderRadius: 10, padding: "8px 12px", marginBottom: 16, fontSize: 12, color: "#2563EB" }}>
-            ℹ️ 나이·성별·키·거주지역은 마이 페이지에서만 수정할 수 있어요.
+            ℹ️ 나이·성별·키는 마이 페이지에서만 수정할 수 있어요.
           </div>
           <div style={S.card}>
             <p style={{ fontWeight: 600, color: "#2563EB", margin: "0 0 12px" }}>신체 측정</p>
@@ -111,11 +119,11 @@ function ReanalyzeScreen({ setScreen, back }) {
             </div>
             <p style={{ fontSize: 13, margin: "0 0 6px" }}>음주 빈도</p>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
-              {["거의 안 함", "월 1-3회", "주 1-2회", "주 3회 이상"].map(d => <button key={d} style={S.chip(drinking === d)} onClick={() => setDrinking(d)}>{d}</button>)}
+              {["안함", "월 1-3회", "주 1-2회", "주 3회 이상"].map(d => <button key={d} style={S.chip(drinking === d)} onClick={() => setDrinking(d)}>{d}</button>)}
             </div>
             <p style={{ fontSize: 13, margin: "0 0 6px" }}>운동 빈도</p>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
-              {["거의 안 함", "주 1-2회", "주 3-4회", "주 5회 이상"].map(e => <button key={e} style={S.chip(exercise === e)} onClick={() => setExercise(e)}>{e}</button>)}
+              {["0일", "1~2일", "3~4일", "5일 이상", "매일"].map(e => <button key={e} style={S.chip(exercise === e)} onClick={() => setExercise(e)}>{e}</button>)}
             </div>
 
           </div>
@@ -145,8 +153,8 @@ function ReanalyzeScreen({ setScreen, back }) {
                   const updatedUser = {
                     ...mergedUserProfile,
                     ...result,
-                    persona: `${userProfile?.region} ${userProfile?.district}에 사는 ${userProfile?.age}세 ${userProfile?.gender}`,
-                    personaTags: [userProfile?.gender, `${userProfile?.age}세`, userProfile?.region, userProfile?.district, smoking, result.bmi >= 25 ? "비만" : "정상"]
+                    persona: `${userProfile?.age}세 ${userProfile?.gender}`,
+                    personaTags: [userProfile?.gender, `${userProfile?.age}세`, smoking, result.bmi >= 25 ? "비만" : "정상"]
                   };
 
                   const updatedRisks = {

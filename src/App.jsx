@@ -1,8 +1,9 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import S from "./styles/shared";
 import { NavBar, AIButton } from "./components/Layout";
 import SplashScreen from "./screens/Splash";
 import LoginScreen from "./screens/Login";
+import PrivacyConsentScreen, { hasPrivacyConsent } from "./screens/PrivacyConsent";
 import OnboardStep1 from "./screens/Onboarding/Onboard1";
 import OnboardStep2 from "./screens/Onboarding/Onboard2";
 import OnboardStep3 from "./screens/Onboarding/Onboard3";
@@ -34,7 +35,7 @@ function AppContent() {
   const [showCoach, setShowCoach] = useState(false);
   const [tempOnboardData, setTempOnboardData] = useState({});
 
-  const nonNavScreens = ["splash", "login", "onboard1", "onboard2", "onboard3", "onboard4"];
+  const nonNavScreens = ["splash", "login", "privacy", "onboard1", "onboard2", "onboard3", "onboard4"];
   const showNav = hasOnboarded && !nonNavScreens.includes(screen);
 
   useEffect(() => {
@@ -60,8 +61,8 @@ function AppContent() {
     const systolicVal = finalData.bpMode === "manual" ? Number(finalData.systolic) : 120;
     const diastolicVal = finalData.bpMode === "manual" ? Number(finalData.diastolic) : 80;
 
-    const regionVal = finalData.region || "서울";
-    const districtVal = finalData.district || "마포구";
+    const regionVal = finalData.region || "";
+    const districtVal = finalData.district || "";
     const nameVal = finalData.name || "사용자";
     const profileImageVal = finalData.profileImage !== undefined ? finalData.profileImage : null;
 
@@ -127,10 +128,10 @@ function AppContent() {
       healthScore: analysisResult.vitality_score,
       healthAge: analysisResult.healthAge ?? analysisResult.health_age ?? age,
       risks: {
-        diabetes: analysisResult.diabetes_prob !== undefined ? analysisResult.diabetes_prob * 100 : analysisResult.diabetes,
-        hypertension: analysisResult.hypertension_prob !== undefined ? analysisResult.hypertension_prob * 100 : analysisResult.hypertension,
-        metabolic: analysisResult.metabolic ?? 10,
-        obesity: analysisResult.obesity_status !== undefined ? (analysisResult.obesity_status === 1 ? 75 : 10) : analysisResult.obesity
+        diabetes: analysisResult.diabetes_prob !== undefined ? (analysisResult.diabetes_prob > 1 ? analysisResult.diabetes_prob / 100 : analysisResult.diabetes_prob) : (analysisResult.diabetes > 1 ? analysisResult.diabetes / 100 : analysisResult.diabetes),
+        hypertension: analysisResult.hypertension_prob !== undefined ? (analysisResult.hypertension_prob > 1 ? analysisResult.hypertension_prob / 100 : analysisResult.hypertension_prob) : (analysisResult.hypertension > 1 ? analysisResult.hypertension / 100 : analysisResult.hypertension),
+        metabolic: analysisResult.metabolic !== undefined ? (analysisResult.metabolic > 1 ? analysisResult.metabolic / 100 : analysisResult.metabolic) : 0.10,
+        obesity: analysisResult.obesity_status !== undefined ? analysisResult.obesity_status : (analysisResult.obesity > 1 ? (analysisResult.obesity >= 50 ? 1 : 0) : analysisResult.obesity)
       }
     } : calculateHealthData({
       ...finalData,
@@ -138,12 +139,7 @@ function AppContent() {
       diastolic: diastolicVal
     }, age);
 
-    const finalRisks = analysisResult ? {
-      diabetes: analysisResult.diabetes_prob !== undefined ? analysisResult.diabetes_prob * 100 : analysisResult.diabetes,
-      hypertension: analysisResult.hypertension_prob !== undefined ? analysisResult.hypertension_prob * 100 : analysisResult.hypertension,
-      metabolic: analysisResult.metabolic ?? 10,
-      obesity: analysisResult.obesity_status !== undefined ? (analysisResult.obesity_status === 1 ? 75 : 10) : analysisResult.obesity
-    } : calculated.risks;
+    const finalRisks = calculated.risks;
 
     const finalBmi = analysisResult?.bmi ?? calculated.bmi;
     const finalHealthAge = calculated.healthAge;
@@ -154,8 +150,8 @@ function AppContent() {
       healthScore: analysisResult?.vitality_score,
       healthAge: finalHealthAge,
       bmi: finalBmi,
-      persona: `${regionVal} ${districtVal}에 사는 ${finalData.age}세 ${finalData.gender}`,
-      personaTags: [finalData.gender, `${finalData.age}세`, regionVal, districtVal, finalData.smoking, finalBmi >= 25 ? "비만" : "정상"],
+      persona: `${finalData.age}세 ${finalData.gender}`,
+      personaTags: [finalData.gender, `${finalData.age}세`, finalData.smoking, finalBmi >= 25 ? "비만" : "정상"],
       createdAt: new Date().toISOString()
     };
     
@@ -184,7 +180,8 @@ function AppContent() {
     const getScreenComponent = () => {
       switch (screen) {
         case "splash": return <SplashScreen next={() => navigateTo("login")} />;
-        case "login": return <LoginScreen next={() => navigateTo("onboard1")} />;
+        case "login": return <LoginScreen next={() => navigateTo(hasPrivacyConsent() ? "onboard1" : "privacy")} />;
+        case "privacy": return <PrivacyConsentScreen next={() => navigateTo("onboard1")} back={goBack} />;
         case "onboard1": return <OnboardStep1 next={(data) => { setTempOnboardData(prev => ({ ...prev, ...data })); navigateTo("onboard2"); }} back={goBack} />;
         case "onboard2": return <OnboardStep2 next={(data) => { setTempOnboardData(prev => ({ ...prev, ...data })); navigateTo("onboard3"); }} back={goBack} />;
         case "onboard3": return <OnboardStep3 next={(data) => { setTempOnboardData(prev => ({ ...prev, ...data })); navigateTo("onboard4"); }} back={goBack} />;
@@ -241,10 +238,67 @@ function AppContent() {
   );
 }
 
+class ErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error, errorInfo) {
+    console.error("ErrorBoundary caught an error:", error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{ padding: "40px 20px", textAlign: "center", fontFamily: "sans-serif", color: "#374151" }}>
+          <h2 style={{ fontWeight: 700, fontSize: 20, marginBottom: 12 }}>데이터 로드 중 오류가 발생했습니다</h2>
+          <p style={{ fontSize: 14, color: "#6B7280", marginBottom: 24, lineHeight: 1.6 }}>
+            로컬 저장소의 이전 임시 데이터 포맷이 충돌했거나 렌더링 중 문제가 있을 수 있습니다.<br />
+            아래 버튼을 눌러 데이터를 초기화하고 새로고침해 주세요.
+          </p>
+          <button 
+            onClick={() => {
+              localStorage.clear();
+              window.location.reload();
+            }}
+            style={{ 
+              padding: "12px 24px", 
+              background: "#EF4444", 
+              color: "#fff", 
+              border: "none", 
+              borderRadius: 8, 
+              cursor: "pointer", 
+              fontWeight: 700,
+              fontSize: 14,
+              boxShadow: "0 4px 12px rgba(239, 68, 68, 0.2)"
+            }}
+          >
+            임시 데이터 초기화 및 서비스 재시작
+          </button>
+          {this.state.error && (
+            <pre style={{ marginTop: 32, padding: 12, background: "#F3F4F6", borderRadius: 8, fontSize: 11, color: "#EF4444", textAlign: "left", overflowX: "auto" }}>
+              {this.state.error.stack || this.state.error.toString()}
+            </pre>
+          )}
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+
 export default function App() {
   return (
-    <HealthProvider>
-      <AppContent />
-    </HealthProvider>
+    <ErrorBoundary>
+      <HealthProvider>
+        <AppContent />
+      </HealthProvider>
+    </ErrorBoundary>
   );
 }

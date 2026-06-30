@@ -3,6 +3,8 @@ import S from '../styles/shared';
 import { useHealth } from '../context/HealthContext';
 import WeeklyMilestoneCard, { getWeeklyResult } from '../components/WeeklyMilestoneCard';
 import { getPlan } from '../api/echoApi';
+import { loadQuestData, saveQuestData, loadMileage, saveMileage } from '../storage/localStore';
+import { getToday } from '../services/mileageService';
 
 function PlanScreen({ setScreen }) {
   const { 
@@ -10,19 +12,18 @@ function PlanScreen({ setScreen }) {
     updatePlan, 
     weeklyPlans, 
     setWeeklyPlans, 
-    wearData, 
     todoCheckedState, 
     setTodoCheckedState, 
     planStartDate, 
+    setPlanStartDate,
     risks, 
     simulationResult, 
     showLoading, 
     hideLoading,
     planGenerated,
     setPlanGenerated,
-    risksUpdatedAt,
     resetPlan,
-    setLoadingMessage
+    updateVitalityBoost
   } = useHealth();
 
   const [loading, setLoading] = useState(!plan && !planGenerated);
@@ -36,7 +37,27 @@ function PlanScreen({ setScreen }) {
     };
   }, []);
 
-  const fetchNewPlan = async () => {
+  const FALLBACK_PLAN = {
+    plan: [
+      {"week": 1, "title": "건강 기초 다지기", "color": "#2563EB",
+       "items": ["매일 30분 걷기", "물 하루 8잔", "취침 전 스트레칭", "식사 규칙적으로"]},
+      {"week": 2, "title": "생활습관 강화", "color": "#7C3AED",
+       "items": ["유산소 운동 주 3회", "나트륨 줄이기", "수면 7시간 확보", "계단 이용"]},
+      {"week": 3, "title": "집중 관리", "color": "#059669",
+       "items": ["근력 운동 추가", "채소 매 끼니 포함", "음주 줄이기", "스트레스 관리"]},
+      {"week": 4, "title": "습관 정착", "color": "#D97706",
+       "items": ["운동 루틴 점검", "한 달 변화 기록", "재분석으로 확인", "다음 달 목표 설정"]}
+    ],
+    weeklyGoals: {"steps": 8000, "exerciseMinutes": 30}
+  };
+
+  const withPlanStartDate = (planResult, startDateOverride) => {
+    if (!startDateOverride) return planResult;
+    if (Array.isArray(planResult)) return { plan: planResult, planStartDate: startDateOverride };
+    return { ...planResult, planStartDate: startDateOverride };
+  };
+
+  const fetchNewPlan = async (startDateOverride = null) => {
     try {
       showLoading("AI가 맞춤 플랜을 생성하고 있어요...");
       setLoading(true);
@@ -44,12 +65,23 @@ function PlanScreen({ setScreen }) {
       if (targetResult) {
         const generatedPlan = await getPlan(targetResult);
         if (isMountedRef.current) {
-          updatePlan(generatedPlan);
+          if (generatedPlan && !generatedPlan.error) {
+            updatePlan(withPlanStartDate(generatedPlan, startDateOverride));
+          } else {
+            updatePlan(withPlanStartDate(FALLBACK_PLAN, startDateOverride));
+          }
           setPlanGenerated(true);
         }
+      } else {
+        updatePlan(withPlanStartDate(FALLBACK_PLAN, startDateOverride));
+        setPlanGenerated(true);
       }
     } catch (error) {
       console.error("Failed to load plan", error);
+      if (isMountedRef.current) {
+        updatePlan(withPlanStartDate(FALLBACK_PLAN, startDateOverride));
+        setPlanGenerated(true);
+      }
     } finally {
       if (isMountedRef.current) {
         setLoading(false);
@@ -62,30 +94,78 @@ function PlanScreen({ setScreen }) {
     setShowConfirmModal(false);
   };
 
+  const deductCurrentPlanMileage = (reason = "plan_cancel") => {
+    const questData = loadQuestData() || {};
+    const mileage = loadMileage() || { total: 0, logs: [] };
+    const totalEarned = Object.values(questData).reduce((sum, day) => {
+      return sum + Number(day?.points_earned || 0);
+    }, 0);
+
+    if (totalEarned > 0) {
+      saveMileage({
+        ...mileage,
+        total: Math.max(0, (mileage.total || 0) - totalEarned),
+        logs: [
+          ...(mileage.logs || []),
+          {
+            type: reason,
+            date: getToday(),
+            points: -totalEarned,
+            memo: "플랜 취소로 기존 실천 마일리지 차감"
+          }
+        ]
+      });
+    }
+    saveQuestData({});
+    setTodoCheckedState({});
+  };
+
   const handleRecreatePlan = () => {
     setShowConfirmModal(false);
+    const today = getToday();
+    setPlanStartDate(today);
+    setWeeklyPlans(prev => prev.map(w => ({
+      ...w,
+      days: w.days.map(day => ({ ...day, status: "unchecked" }))
+    })));
+    setTodoCheckedState({});
+    setPlanGenerated(false);
+    fetchNewPlan(today);
+  };
+
+  const handleCancelPlan = () => {
+    if (!confirm("현재 4주 플랜을 취소할까요? 취소하면 이 플랜으로 적립한 건강 마일리지가 차감됩니다.")) return;
+    deductCurrentPlanMileage();
     resetPlan();
     updatePlan(null);
     setPlanGenerated(false);
-    fetchNewPlan();
   };
 
+  const hasFetchedRef = useRef(false);
   useEffect(() => {
-    if (plan) {
+    if (plan && plan.data) {
       setLoading(false);
     } else {
-      if (!planGenerated) {
+      if (!hasFetchedRef.current) {
+        hasFetchedRef.current = true;
         fetchNewPlan();
       } else {
         setLoading(false);
       }
     }
-  }, []);
+  }, [plan]);
 
   // 플랜 시작일 기준 현재 주차 및 오늘 요일 연산
   const getPlanProgress = (startDateStr) => {
-    if (!startDateStr) return { week: 1, dayName: "월", diffDays: 0, dayIndex: 0 };
-    const start = new Date(startDateStr);
+    let dateStr = startDateStr;
+    if (!dateStr || dateStr === "null" || dateStr === "undefined" || isNaN(new Date(dateStr).getTime())) {
+      const d = new Date();
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      dateStr = `${y}-${m}-${day}`;
+    }
+    const start = new Date(dateStr);
     const now = new Date();
     start.setHours(0, 0, 0, 0);
     now.setHours(0, 0, 0, 0);
@@ -103,10 +183,49 @@ function PlanScreen({ setScreen }) {
     return { week, dayName, diffDays, dayIndex };
   };
 
+  // ✅ 모든 훅은 조기 리턴 이전에 선언해야 함 (React 훅 규칙)
+  const { week: currentWeek, dayIndex: currentDayIndex } = getPlanProgress(planStartDate);
 
+  const [selectedDayIndex, setSelectedDayIndex] = useState(0);
 
+  useEffect(() => {
+    setSelectedDayIndex(currentDayIndex);
+  }, [currentDayIndex]);
 
+  const getDateStr = (startDateStr, offsetDays) => {
+    if (!startDateStr) return "";
+    const d = new Date(startDateStr);
+    d.setDate(d.getDate() + offsetDays);
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  };
 
+  const getSelectedDayName = (idx) => {
+    const daysOfWeek = ["일", "월", "화", "수", "목", "금", "토"];
+    let dateStr = planStartDate;
+    if (!dateStr || dateStr === "null" || dateStr === "undefined" || isNaN(new Date(dateStr).getTime())) {
+      const d = new Date();
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      dateStr = `${y}-${m}-${day}`;
+    }
+    const start = new Date(dateStr);
+    const startDayOfWeek = start.getDay();
+    return daysOfWeek[(startDayOfWeek + idx) % 7] + "요일";
+  };
+
+  const selectedDate = getDateStr(planStartDate, (currentWeek - 1) * 7 + selectedDayIndex);
+  const todayDate = getToday();
+  const questData = loadQuestData() || {};
+  const isLocked = selectedDate < todayDate || (questData[selectedDate]?.locked ?? false);
+  const isCompleted = questData[selectedDate]?.completed ?? false;
+  const isToday = selectedDate === todayDate;
+  const isActive = isToday && !isLocked;
+
+  // ✅ 훅 선언 후에 조기 리턴 허용
   if (loading) {
     return (
       <div style={S.screen}>
@@ -118,55 +237,87 @@ function PlanScreen({ setScreen }) {
     );
   }
 
-  const { week: currentWeek, dayName: currentDayName, dayIndex: currentDayIndex } = getPlanProgress(planStartDate);
+  const handleTodoToggle = async (week, item, idx) => {
+    if (!isActive) return; // 오늘 날짜가 아니거나 이미 잠긴 날은 체크 변경 불가
 
-  const handleUpdateDays = (week, updatedDays) => {
+    const key = `todo-${week}-${item}`;
+    const wasChecked = !!(todoCheckedState[key]);
+    const nextChecked = !wasChecked;
+    const nextCheckedState = {
+      ...todoCheckedState,
+      [key]: nextChecked
+    };
+    setTodoCheckedState(nextCheckedState);
+
+    // questData 업데이트
+    const updatedQuestData = { ...questData };
+    if (!updatedQuestData[selectedDate]) {
+      updatedQuestData[selectedDate] = { locked: false, completed: false, points_earned: 0, todos: [] };
+    }
+    if (!updatedQuestData[selectedDate].todos) {
+      updatedQuestData[selectedDate].todos = [];
+    }
+    
+    const targetPlan = (plan && plan.data) ? plan.data.find(p => p.week === week) : null;
+    const todayTodoItems = targetPlan ? targetPlan.items : [];
+    
+    if (updatedQuestData[selectedDate].todos.length === 0 && todayTodoItems.length > 0) {
+      updatedQuestData[selectedDate].todos = todayTodoItems.map((todoTitle, todoIdx) => ({
+        id: `todo_${week}_${todoIdx}`,
+        title: todoTitle,
+        checked: todoIdx === idx ? nextChecked : false
+      }));
+    } else if (updatedQuestData[selectedDate].todos[idx]) {
+      updatedQuestData[selectedDate].todos[idx].checked = nextChecked;
+    } else if (todayTodoItems.length > 0) {
+      updatedQuestData[selectedDate].todos[idx] = {
+        id: `todo_${week}_${idx}`,
+        title: item,
+        checked: nextChecked
+      };
+    }
+
+    const checkedCount = updatedQuestData[selectedDate].todos.filter(t => t.checked).length;
+    const totalCount = updatedQuestData[selectedDate].todos.length;
+    const allChecked = totalCount > 0 && checkedCount === totalCount;
+    const anyChecked = checkedCount > 0;
+
+    updatedQuestData[selectedDate].completed = allChecked;
+
+    // 개별 실천은 즉시 +1pt, 일일 전체 완료 보너스는 자정 마감 후 +2pt로 확정한다.
+    const prevPointsEarned = updatedQuestData[selectedDate].points_earned || 0;
+    const mileage = loadMileage();
+
+    if (nextChecked && !wasChecked) {
+      const newTotal = (mileage.total || 0) + 1;
+      const newLog = { type: 'todo_check', date: selectedDate, points: 1, item };
+      saveMileage({ ...mileage, total: newTotal, logs: [...(mileage.logs || []), newLog] });
+      updatedQuestData[selectedDate].points_earned = prevPointsEarned + 1;
+    } else if (!nextChecked && wasChecked) {
+      const newTotal = Math.max(0, (mileage.total || 0) - 1);
+      const newLog = { type: 'todo_uncheck', date: selectedDate, points: -1, item };
+      saveMileage({ ...mileage, total: newTotal, logs: [...(mileage.logs || []), newLog] });
+      updatedQuestData[selectedDate].points_earned = Math.max(0, prevPointsEarned - 1);
+    }
+
+    saveQuestData(updatedQuestData);
+
+    // weeklyPlans의 요일 상태를 UI 업데이트
     setWeeklyPlans(prev => prev.map(w => {
       if (w.week === week) {
+        const updatedDays = w.days.map((d, dIdx) => {
+          if (dIdx === selectedDayIndex) {
+            let nextStatus = "unchecked";
+            if (allChecked) nextStatus = "success";
+            else if (anyChecked) nextStatus = "in-progress";
+            return { ...d, status: nextStatus };
+          }
+          return d;
+        });
         return { ...w, days: updatedDays };
       }
       return w;
     }));
-  };
-
-  const handleTodoToggle = (week, item) => {
-    const key = `todo-${week}-${item}`;
-    const nextCheckedState = {
-      ...todoCheckedState,
-      [key]: !todoCheckedState[key]
-    };
-    setTodoCheckedState(nextCheckedState);
-
-    // Get current week's plan items
-    const targetPlan = (plan && plan.data) ? plan.data.find(p => p.week === week) : null;
-    const todayTodoItems = targetPlan ? targetPlan.items : [];
-    
-    if (todayTodoItems.length > 0) {
-      const checkedCount = todayTodoItems.filter(todoItem => !!nextCheckedState[`todo-${week}-${todoItem}`]).length;
-      const allChecked = checkedCount === todayTodoItems.length;
-      const anyChecked = checkedCount > 0;
-
-      setWeeklyPlans(prev => prev.map(w => {
-        if (w.week === week) {
-          const updatedDays = w.days.map((d, idx) => {
-            if (idx === currentDayIndex) {
-              let nextStatus = d.status;
-              if (allChecked) {
-                nextStatus = "success";
-              } else if (anyChecked) {
-                nextStatus = "in-progress";
-              } else {
-                nextStatus = "unchecked";
-              }
-              return { ...d, status: nextStatus };
-            }
-            return d;
-          });
-          return { ...w, days: updatedDays };
-        }
-        return w;
-      }));
-    }
   };
 
   // 4주 종합 요약 계산
@@ -197,10 +348,12 @@ function PlanScreen({ setScreen }) {
 
   return (
     <div style={S.screen}>
-      <div style={S.scrollArea}>
-        <div style={{ padding: "20px 16px 16px" }}>
-          <h2 style={{ fontWeight: 700, fontSize: 20, margin: "0 0 4px" }}>실천 플랜</h2>
-          <p style={{ fontSize: 13, color: "#6B7280", margin: "0 0 16px" }}>오늘의 건강 실천 플랜을 달성해보세요</p>
+      <div style={{ ...S.scrollArea, paddingTop: 86 }}>
+        <div style={{ padding: "0 16px 16px" }}>
+          <div style={{ ...S.topBar, padding: "20px 16px 12px", borderBottom: "1px solid #F3F4F6" }}>
+            <h2 style={{ fontWeight: 700, fontSize: 20, margin: "0 0 4px" }}>실천 플랜</h2>
+            <p style={{ fontSize: 13, color: "#6B7280", margin: 0 }}>오늘의 건강 실천 플랜을 달성해보세요</p>
+          </div>
 
           <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 16 }}>
             <div style={{ background: "#EFF6FF", borderRadius: 20, padding: "4px 10px",
@@ -228,9 +381,9 @@ function PlanScreen({ setScreen }) {
               
               {/* 가로 선형 마일스톤 UI */}
               <div style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
+                display: "grid",
+                gridTemplateColumns: "38px 1fr 38px 1fr 38px 1fr 38px",
+                alignItems: "start",
                 margin: "12px 0 24px",
                 position: "relative",
                 padding: "0 8px"
@@ -295,11 +448,10 @@ function PlanScreen({ setScreen }) {
                       
                       {idx < weeklyPlans.length - 1 && (
                         <div style={{
-                          flex: 1,
+                          width: "100%",
                           height: 2,
                           borderBottom: "2px dashed #E5E7EB",
-                          margin: "0 -8px",
-                          transform: "translateY(-11px)",
+                          transform: "translateY(19px)",
                           zIndex: 1
                         }} />
                       )}
@@ -340,15 +492,29 @@ function PlanScreen({ setScreen }) {
                 <span style={{ fontSize: 12, color: "#9CA3AF" }}>매일 자정 자동 갱신</span>
               </div>
               
-              <h3 style={{ fontSize: 17, fontWeight: 700, color: "#111827", margin: "0 0 14px" }}>
-                {currentWeek}주차 {currentDayName}요일 · {currentWeekInfo.title}
-              </h3>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
+                <h3 style={{ fontSize: 17, fontWeight: 700, color: "#111827", margin: 0 }}>
+                  {currentWeek}주차 {getSelectedDayName(selectedDayIndex)} · {currentWeekInfo.title}
+                </h3>
+                {isCompleted && (
+                  <span style={{ background: "#D1FAE5", color: "#065F46", fontSize: 11, fontWeight: 600, padding: "2px 6px", borderRadius: 6 }}>
+                    완료 ✅
+                  </span>
+                )}
+                {isLocked && (
+                  <span style={{ background: "#F3F4F6", color: "#6B7280", fontSize: 11, fontWeight: 600, padding: "2px 6px", borderRadius: 6, display: "flex", alignItems: "center", gap: 3 }}>
+                    🔒 잠금됨
+                  </span>
+                )}
+              </div>
 
               {/* 주간 7일 마일스톤 통합 배치 */}
               <WeeklyMilestoneCard 
                 week={currentWeekInfo.week}
                 days={currentWeekInfo.days}
                 planStartDate={planStartDate}
+                selectedDayIndex={selectedDayIndex}
+                onSelectDay={setSelectedDayIndex}
               />
 
               <div style={{ borderTop: "1px dashed #E5E7EB", margin: "16px 0" }} />
@@ -364,23 +530,39 @@ function PlanScreen({ setScreen }) {
                 <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                   {todayTodoItems.length > 0 ? (
                     todayTodoItems.map((item, idx) => {
-                      const key = `todo-${currentWeek}-${item}`;
-                      const isChecked = !!todoCheckedState[key];
+                      const isChecked = questData[selectedDate]?.todos?.[idx]?.checked || false;
                       return (
-                        <label key={idx} style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}>
+                        <label key={idx} style={{ 
+                          display: "flex", 
+                          alignItems: "center", 
+                          gap: 10, 
+                          cursor: isActive ? "pointer" : "not-allowed",
+                          opacity: isLocked ? 0.6 : 1
+                        }}>
                           <input 
                             type="checkbox" 
                             checked={isChecked}
-                            onChange={() => handleTodoToggle(currentWeek, item)}
-                            style={{ width: 18, height: 18, cursor: "pointer", accentColor: weekColor, flexShrink: 0 }}
+                            disabled={!isActive}
+                            onChange={() => handleTodoToggle(currentWeek, item, idx)}
+                            style={{ 
+                              width: 18, 
+                              height: 18, 
+                              cursor: isActive ? "pointer" : "not-allowed", 
+                              accentColor: weekColor, 
+                              flexShrink: 0 
+                            }}
                           />
                           <span style={{
                             fontSize: 14,
-                            color: isChecked ? "#9CA3AF" : "#374151",
+                            color: isChecked ? "#9CA3AF" : (isLocked ? "#9CA3AF" : "#374151"),
                             textDecoration: isChecked ? "line-through" : "none",
-                            transition: "all 0.1s"
+                            transition: "all 0.1s",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 4
                           }}>
                             {item}
+                            {isLocked && <span style={{ fontSize: 12 }}>🔒</span>}
                           </span>
                         </label>
                       );
@@ -402,6 +584,20 @@ function PlanScreen({ setScreen }) {
             <button onClick={() => setScreen("reanalyze")} style={S.btn()}>▸ 변화 기록하기</button>
           </div>
 
+          <button
+            onClick={() => setShowConfirmModal(true)}
+            style={{ ...S.btn("outline"), marginTop: 4, marginBottom: 10 }}
+          >
+            플랜 새로 생성하기
+          </button>
+
+          <button
+            onClick={handleCancelPlan}
+            style={{ ...S.btn("outline"), borderColor: "#EF4444", color: "#EF4444", marginTop: 4, marginBottom: 12 }}
+          >
+            플랜 취소하기
+          </button>
+
         </div>
       </div>
 
@@ -409,7 +605,7 @@ function PlanScreen({ setScreen }) {
       {showConfirmModal && (
         <div style={{
           position: "fixed", inset: 0,
-          background: "rgba(0,0,0,0.4)", zIndex: 200,
+          background: "rgba(0,0,0,0.4)", zIndex: 400,
           display: "flex", alignItems: "flex-end",
           justifyContent: "center"
         }}>
@@ -423,7 +619,7 @@ function PlanScreen({ setScreen }) {
             </p>
             <p style={{ fontSize: 14, color: "#6B7280", marginBottom: 20 }}>
               기존 플랜을 유지할까요, 새로 생성할까요?<br />
-              새로 생성하면 체크 기록이 초기화됩니다.
+              새로 생성하면 체크 기록이 초기화되고 기존 플랜 마일리지가 차감됩니다.
             </p>
             <button onClick={handleKeepPlan} style={{ ...S.btn("primary"), marginBottom: 10 }}>
               기존 플랜 유지하기

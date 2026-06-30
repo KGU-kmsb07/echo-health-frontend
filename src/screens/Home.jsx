@@ -83,43 +83,44 @@ function HomeScreen({ setScreen, setTab }) {
   }
   return (
     <div style={S.screen}>
-      <div style={S.scrollArea}>
-        {/* Header */}
+      <div style={{
+        ...S.topBar,
+        display: "flex", alignItems: "center",
+        padding: "20px 24px 12px", gap: 14,
+        background: "#fff",
+        borderBottom: "1px solid #F3F4F6",
+        flexShrink: 0,
+        zIndex: 300
+      }}>
         <div style={{
-          display: "flex", alignItems: "center",
-          padding: "20px 24px 12px", gap: 14,
-          background: "#fff"
+          width: 48, height: 48, borderRadius: 24,
+          overflow: "hidden", background: "#E5E7EB",
+          flexShrink: 0,
+          display: "flex", alignItems: "center", justifyContent: "center"
         }}>
-          {/* 프로필 사진 */}
-          <div style={{
-            width: 48, height: 48, borderRadius: 24,
-            overflow: "hidden", background: "#E5E7EB",
-            flexShrink: 0,
-            display: "flex", alignItems: "center", justifyContent: "center"
-          }}>
-            {user.profileImage
-              ? <img src={user.profileImage} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-              : <span style={{ fontSize: 20 }}>👤</span>
-            }
-          </div>
-
-          {/* 텍스트 */}
-          <div>
-            <p style={{ fontSize: 18, fontWeight: 700, color: "#111", margin: 0 }}>
-              {user.name || "사용자"} 님, 환영합니다
-            </p>
-          </div>
-          
-          {/* 알림 종 */}
-          <button onClick={() => setShowNotif(true)} style={{ marginLeft: "auto", background: "none", border: "none", cursor: "pointer", fontSize: 20, position: "relative", padding: 4 }}>
-            🔔
-            {notifications.filter(n => n.unread).length > 0 && (
-              <span style={{ position: "absolute", top: -2, right: -2, width: 16, height: 16, background: "#EF4444", borderRadius: "50%", color: "#fff", fontSize: 10, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                {notifications.filter(n => n.unread).length}
-              </span>
-            )}
-          </button>
+          {user.profileImage
+            ? <img src={user.profileImage} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+            : <span style={{ fontSize: 20 }}>👤</span>
+          }
         </div>
+
+        <div>
+          <p style={{ fontSize: 18, fontWeight: 700, color: "#111", margin: 0 }}>
+            {user.name || "사용자"} 님, 환영합니다
+          </p>
+        </div>
+        
+        <button onClick={() => setShowNotif(true)} style={{ marginLeft: "auto", background: "none", border: "none", cursor: "pointer", fontSize: 20, position: "relative", padding: 4 }}>
+          🔔
+          {notifications.filter(n => n.unread).length > 0 && (
+            <span style={{ position: "absolute", top: -2, right: -2, width: 16, height: 16, background: "#EF4444", borderRadius: "50%", color: "#fff", fontSize: 10, display: "flex", alignItems: "center", justifyContent: "center" }}>
+              {notifications.filter(n => n.unread).length}
+            </span>
+          )}
+        </button>
+      </div>
+
+      <div style={{ ...S.scrollArea, paddingTop: 82 }}>
         <div style={{ padding: "0 16px 16px" }}>
           {/* Health Score */}
           <div style={{ ...S.card, marginTop: 12 }}>
@@ -152,10 +153,10 @@ function HomeScreen({ setScreen, setTab }) {
             </div>
             <div style={{ display: "flex", justifyContent: "space-around" }}>
               {[
-                { icon: "💧", label: "당뇨 위험", pct: risks?.diabetes ?? null, color: "#3B82F6" },
-                { icon: "❤️", label: "고혈압 위험", pct: risks?.hypertension ?? null, color: "#EF4444" },
-                { icon: "📋", label: "대사증후군", pct: risks?.metabolic ?? null, color: "#8B5CF6" },
-                { icon: "⚖️", label: "비만 위험", pct: risks?.obesity ?? null, color: "#F59E0B" }
+                { icon: "💧", label: "당뇨 위험", pct: (risks?.diabetes !== null && risks?.diabetes !== undefined) ? Math.round(risks.diabetes * 100) : null, color: "#3B82F6" },
+                { icon: "❤️", label: "고혈압 위험", pct: (risks?.hypertension !== null && risks?.hypertension !== undefined) ? Math.round(risks.hypertension * 100) : null, color: "#EF4444" },
+                { icon: "📋", label: "대사증후군", pct: (risks?.metabolic !== null && risks?.metabolic !== undefined) ? Math.round(risks.metabolic * 100) : null, color: "#8B5CF6" },
+                { icon: "⚖️", label: "비만 위험", pct: (risks?.obesity !== null && risks?.obesity !== undefined) ? (risks.obesity === 1 ? 75 : 10) : null, color: "#F59E0B" }
               ].map(r => (
                 <div key={r.label} style={{ textAlign: "center" }}>
                   <div style={{ width: 44, height: 44, borderRadius: "50%", background: r.color + "20", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 4px", fontSize: 18 }}>{r.icon}</div>
@@ -169,9 +170,18 @@ function HomeScreen({ setScreen, setTab }) {
           <div style={{ ...S.card, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <div>
               <p style={{ fontWeight: 700, margin: "0 0 4px" }}>숨은 건강 혜택</p>
-              <p style={{ fontSize: 12, color: "#6B7280", margin: 0 }}>거주지역 기준으로 받을 수 있는<br />혜택을 찾아봤어요.</p>
+              <p style={{ fontSize: 12, color: "#6B7280", margin: 0 }}>시/도를 선택하면 받을 수 있는<br />혜택을 확인할 수 있어요.</p>
             </div>
-            <button onClick={() => { setTab("benefits"); setScreen("benefits"); }} style={{ background: "#10B981", color: "#fff", border: "none", borderRadius: 10, padding: "10px 14px", cursor: "pointer", fontWeight: 600, fontSize: 13 }}>혜택<br />확인하기</button>
+            <button
+              onClick={() => {
+                localStorage.setItem("echo-health-benefits-tab", "local");
+                setTab("benefits");
+                setScreen("benefits");
+              }}
+              style={{ background: "#10B981", color: "#fff", border: "none", borderRadius: 10, padding: "10px 14px", cursor: "pointer", fontWeight: 600, fontSize: 13 }}
+            >
+              혜택<br />확인하기
+            </button>
           </div>
           {/* 오늘의 걸음 수 */}
           <div style={S.card}>
@@ -204,7 +214,7 @@ function HomeScreen({ setScreen, setTab }) {
       </div>
       {/* 알림 패널 */}
       {showNotif && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.3)", zIndex: 150 }} onClick={() => setShowNotif(false)}>
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.3)", zIndex: 400 }} onClick={() => setShowNotif(false)}>
           <div 
             className="bottom-sheet"
             onClick={e => e.stopPropagation()} 
@@ -214,7 +224,7 @@ function HomeScreen({ setScreen, setTab }) {
             onMouseDown={handleMouseDown}
             onMouseUp={handleMouseUp}
             onDragStart={e => e.preventDefault()}
-            style={{ position: "fixed", bottom: 56, left: 0, right: 0, margin: "0 auto", width: "100%", maxWidth: 390, background: "#fff", borderRadius: "20px 20px 0 0", padding: "10px 20px 20px", zIndex: 200 }}
+            style={{ position: "fixed", bottom: 56, left: 0, right: 0, margin: "0 auto", width: "100%", maxWidth: 390, background: "#fff", borderRadius: "20px 20px 0 0", padding: "10px 20px 20px", zIndex: 500 }}
           >
             {/* 드래그 핸들 zone */}
             <div 

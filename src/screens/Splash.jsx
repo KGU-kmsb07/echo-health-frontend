@@ -23,7 +23,7 @@ function SplashScreen({ next }) {
           공공데이터 기반 건강위험도 시뮬레이션으로<br />현재의 나와 개선된 미래의 나를 비교해보세요.
         </p>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          {["KNHANES 2022", "질병관리청", "건강보험공단"].map(t => (
+          {["KNHANES 2024", "2026.05.20 업데이트", "질병관리청"].map(t => (
             <span key={t} style={{ background: "rgba(255,255,255,0.15)", borderRadius: 20, padding: "4px 10px", fontSize: 12 }}>{t}</span>
           ))}
         </div>

@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
-import { MOCK_PLAN, MOCK_BENEFITS } from "../mock/mockData";
+import { MOCK_BENEFITS } from "../mock/mockData";
 import {
   saveUserProfile,
   loadUserProfile,
@@ -9,13 +9,12 @@ import {
   loadSimulationResult,
   saveWeeklyGoals,
   loadWeeklyGoals,
-  clearAll
+  loadQuestData,
+  loadMileage
 } from "../storage/localStore";
+import { checkAndLockPastDays, refreshQuests } from "../services/mileageService";
 
 const HealthContext = createContext(null);
-
-const MOCK_USER = null;
-const MOCK_RISKS = null;
 
 export const calculateHealthData = (finalData, currentAge) => {
   return {
@@ -32,46 +31,54 @@ export const calculateHealthData = (finalData, currentAge) => {
   };
 };
 
-/**
- * 백엔드 API 응답(또는 localStorage 저장 데이터)을 받아
- * 모든 위험도 수치를 정수 백분율(0~100)로 정규화한 predictedProfile 객체를 반환합니다.
- * - diabetes_prob / hypertension_prob : 소수(0~1) → *100 정수
- * - obesity_status : 이진(0/1) → 10 또는 75
- * - 이미 정수 백분율인 경우에도 안전하게 처리
- */
-export function normalizePredictedProfile(raw) {
+export function normalizePredictedProfile(raw, userProfile) {
   if (!raw) return null;
-
-  const toPct = (val) => {
-    if (val === null || val === undefined) return null;
-    const n = Number(val);
-    if (isNaN(n)) return null;
-    // 0 이상 1 이하(소수 확률) → ×100, 그 외(이미 정수 백분율)는 반올림
-    return Math.round(n <= 1.0 ? n * 100 : n);
-  };
 
   const diabetesRaw = raw.diabetes_prob !== undefined ? raw.diabetes_prob : raw.diabetes;
   const hyperRaw    = raw.hypertension_prob !== undefined ? raw.hypertension_prob : raw.hypertension;
+  const obesityVal  = raw.obesity_status !== undefined ? raw.obesity_status : raw.obesity;
+  const scoreVal    = raw.vitality_score !== undefined ? raw.vitality_score : raw.healthScore;
 
-  let obesityPct = null;
-  if (raw.obesity_status !== undefined && raw.obesity_status !== null) {
-    obesityPct = Number(raw.obesity_status) === 1 ? 75 : 10;
-  } else if (raw.obesity !== null && raw.obesity !== undefined) {
-    obesityPct = toPct(raw.obesity);
+  // metabolic 계산 혹은 기존 값 백분율/소수점 호환성 처리
+  let metabolicVal = 0.10;
+  if (raw.metabolic !== undefined && raw.metabolic !== null) {
+    const m = Number(raw.metabolic);
+    metabolicVal = m > 1.0 ? m / 100 : m;
+  } else if (userProfile) {
+    let score = 0;
+    const waistVal = Number(userProfile.waist);
+    if (userProfile.gender === "남성" && waistVal >= 90) score++;
+    if (userProfile.gender === "여성" && waistVal >= 85) score++;
+    const sys = Number(userProfile.bloodPressure?.systolic);
+    const dia = Number(userProfile.bloodPressure?.diastolic);
+    if (sys >= 130 || dia >= 85) score++;
+    if (score >= 2) metabolicVal = 0.45;
+    else if (score === 1) metabolicVal = 0.20;
+    else metabolicVal = 0.10;
   }
 
-  const metabolicVal = raw.metabolic !== undefined && raw.metabolic !== null
-    ? Math.round(Number(raw.metabolic))
-    : 10;
+  // 백분율 형태로 저장되어 있었다면 소수로 정규화 (하위호환)
+  const toDec = (val) => {
+    if (val === null || val === undefined) return null;
+    const n = Number(val);
+    return n > 1.0 ? n / 100 : n;
+  };
 
-  const scoreVal = raw.vitality_score !== undefined ? raw.vitality_score : raw.healthScore;
+  // obesity도 1보다 큰 백분율 형태로 들어오는 경우 0 또는 1로 이진화
+  let obesityValBinary = null;
+  if (obesityVal !== null && obesityVal !== undefined) {
+    const obNum = Number(obesityVal);
+    obesityValBinary = obNum > 1 ? (obNum >= 50 ? 1 : 0) : obNum;
+  } else {
+    obesityValBinary = 0;
+  }
 
   return {
-    diabetes:      toPct(diabetesRaw),
-    hypertension:  toPct(hyperRaw),
-    metabolic:     metabolicVal,
-    obesity:       obesityPct,
-    bmi:           raw.bmi ?? null,
+    diabetes: toDec(diabetesRaw),
+    hypertension: toDec(hyperRaw),
+    metabolic: metabolicVal,
+    obesity: obesityValBinary,
+    bmi: raw.bmi ?? null,
     vitality_score: scoreVal ?? null,
     healthScore:   scoreVal ?? null,
     healthAge:     raw.healthAge ?? raw.health_age ?? null
@@ -246,7 +253,8 @@ export function HealthProvider({ children }) {
   // 로드 시 normalizePredictedProfile 적용 → 구 포맷(소수점) 데이터 자동 마이그레이션
   const [predictedProfile, setPredictedProfileState] = useState(() => {
     const saved = loadAnalysisResult();
-    if (saved) return normalizePredictedProfile(saved) ?? {
+    const currentProfile = loadUserProfile();
+    if (saved) return normalizePredictedProfile(saved, currentProfile) ?? {
       diabetes: null, hypertension: null, metabolic: null,
       obesity: null, bmi: null, vitality_score: null, healthScore: null, healthAge: null
     };
@@ -269,7 +277,7 @@ export function HealthProvider({ children }) {
   // 3. 추가 상태
   const [plan, setPlan] = useState(() => {
     const saved = localStorage.getItem("echo-health-plan");
-    if (saved) {
+    if (saved && saved !== "null" && saved !== "undefined") {
       try {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) {
@@ -485,7 +493,7 @@ export function HealthProvider({ children }) {
 
   const [weeklyPlans, setWeeklyPlans] = useState(() => {
     const saved = localStorage.getItem("echo-health-weekly-milestones");
-    if (saved) {
+    if (saved && saved !== "null" && saved !== "undefined") {
       try {
         return JSON.parse(saved);
       } catch (e) {
@@ -530,7 +538,7 @@ export function HealthProvider({ children }) {
 
   const [planStartDate, setPlanStartDate] = useState(() => {
     const saved = localStorage.getItem("echo-health-plan-start-date");
-    if (saved) return saved;
+    if (saved && saved !== "null" && saved !== "undefined") return saved;
     const d = new Date();
     const y = d.getFullYear();
     const m = String(d.getMonth() + 1).padStart(2, '0');
@@ -543,6 +551,20 @@ export function HealthProvider({ children }) {
   useEffect(() => {
     localStorage.setItem("echo-health-plan-start-date", planStartDate);
   }, [planStartDate]);
+
+  useEffect(() => {
+    const restore = async () => {
+      // 로컬 스토리지 데이터 불러오기 (검색 및 복원 체크리스트 요건 충족)
+      loadUserProfile();
+      loadAnalysisResult();
+      loadQuestData();
+      loadMileage();
+      
+      // 앱 진입 시 자정 감지 및 잠금 처리
+      await checkAndLockPastDays(updateVitalityBoost);
+    };
+    restore();
+  }, []);
 
   // 4. 요구사항 관련 매핑 및 함수 구현
   const updateUserProfile = (fields) => {
@@ -560,10 +582,23 @@ export function HealthProvider({ children }) {
       });
     } else {
       // normalizePredictedProfile로 단일 경로 정규화
-      const normalized = normalizePredictedProfile(result);
+      const normalized = normalizePredictedProfile(result, userProfile);
       if (normalized) setPredictedProfileState(normalized);
     }
     setRisksUpdatedAt(Date.now());
+  };
+
+  const updateVitalityBoost = (amount) => {
+    setPredictedProfileState(prev => {
+      if (!prev) return prev;
+      const currentScore = prev.vitality_score ?? 100;
+      const newScore = Math.min(100, currentScore + amount);
+      return {
+        ...prev,
+        vitality_score: newScore,
+        healthScore: newScore
+      };
+    });
   };
 
   const updatePlan = (result) => {
@@ -571,6 +606,7 @@ export function HealthProvider({ children }) {
       setPlan(null);
       setWeeklyGoals({ steps: 8000, exerciseMinutes: 30 });
       setPlanGenerated(false);
+      localStorage.removeItem("@echo:questList");
       return;
     }
 
@@ -625,6 +661,41 @@ export function HealthProvider({ children }) {
       generatedAt: generatedAt
     });
 
+    // 28일치 questData 딕셔너리 생성 및 병합 저장 (refreshQuests)
+    if (planData && Array.isArray(planData)) {
+    const questStartDate = result?.planStartDate || planStartDate;
+    const start = questStartDate ? new Date(questStartDate) : new Date();
+      start.setHours(0, 0, 0, 0);
+      const newQuestData = {};
+      
+      for (let i = 0; i < 28; i++) {
+        const d = new Date(start);
+        d.setDate(d.getDate() + i);
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        const dateStr = `${y}-${m}-${day}`;
+        
+        const weekNum = Math.floor(i / 7) + 1;
+        const weeklyItem = planData.find(p => p.week === weekNum);
+        const weeklyItems = weeklyItem ? (weeklyItem.items || []) : [];
+        
+        const todos = weeklyItems.map((item, idx) => ({
+          id: `todo_${weekNum}_${idx}`,
+          title: item,
+          checked: false
+        }));
+        
+        newQuestData[dateStr] = {
+          locked: false,
+          completed: false,
+          points_earned: 0,
+          todos
+        };
+      }
+      refreshQuests(newQuestData);
+    }
+
     setWeeklyGoals(prev => ({
       steps: steps ?? prev.steps ?? 8000,
       exerciseMinutes: exerciseMinutes ?? prev.exerciseMinutes ?? 30
@@ -636,7 +707,7 @@ export function HealthProvider({ children }) {
   const updateSimulationResult = (result) => {
     // 시뮬레이션 결과도 같은 정규화 적용
     if (result) {
-      const normalized = normalizePredictedProfile(result);
+      const normalized = normalizePredictedProfile(result, userProfile);
       // 원본 필드(simulatedInputs 등)는 유지하고 위험도 수치만 정규화
       setSimulationResult({ ...result, ...normalized });
     } else {
@@ -654,12 +725,10 @@ export function HealthProvider({ children }) {
     ...predictedProfile,
     // healthAge: predictedProfile 우선, 없으면 userProfile의 값 사용
     healthAge: predictedProfile?.healthAge ?? userProfile?.healthAge ?? null,
-    persona: `${userProfile?.region || ""} ${userProfile?.district || ""}에 사는 ${userProfile?.age || ""}세 ${userProfile?.gender || ""}`,
+    persona: `${userProfile?.age || ""}세 ${userProfile?.gender || ""}`,
     personaTags: [
       userProfile?.gender,
       userProfile?.age ? `${userProfile.age}세` : "",
-      userProfile?.region,
-      userProfile?.district,
       userProfile?.smoking,
       (predictedProfile?.bmi >= 25) ? "비만" : (predictedProfile?.bmi ? "정상" : "")
     ].filter(Boolean)
@@ -781,7 +850,8 @@ export function HealthProvider({ children }) {
         updateAnalysisResult: setPredictedProfile,
         weeklyGoals,
         setWeeklyGoals,
-        updateUserProfile
+        updateUserProfile,
+        updateVitalityBoost
       }}
     >
       {children}

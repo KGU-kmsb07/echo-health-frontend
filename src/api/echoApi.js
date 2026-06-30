@@ -45,6 +45,30 @@ export async function getPlan(analysisResult) {
   }
 }
 
+export async function fetchKdcaContent(category) {
+  try {
+    const res = await fetch(`${BASE_URL}/kdca/content?category=${encodeURIComponent(category)}`);
+    return await res.json();
+  } catch (e) {
+    console.error("fetchKdcaContent error:", e);
+    return null;
+  }
+}
+
+export async function generateQuests(userData, predictResult) {
+  try {
+    const res = await fetch(`${BASE_URL}/quest/generate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ user_data: userData, predict_result: predictResult })
+    });
+    return await res.json();
+  } catch (e) {
+    console.error("generateQuests error:", e);
+    return null;
+  }
+}
+
 export async function sendCoachMessage(messages, userContext) {
   try {
     const res = await fetch(`${BASE_URL}/coach`, {
@@ -59,8 +83,4 @@ export async function sendCoachMessage(messages, userContext) {
       source: "서비스 점검 중"
     };
   }
-}
-
-export async function getBenefits(region, age, risks) {
-  return [];
 }

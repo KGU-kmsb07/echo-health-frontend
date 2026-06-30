@@ -10,28 +10,14 @@ function ExerciseScreen() {
   const [exerciseType, setExerciseType] = useState("헬스");
   const [duration, setDuration] = useState("30분");
   const [intensity, setIntensity] = useState("보통");
+  const [memo, setMemo] = useState("");
+  const [editingIndex, setEditingIndex] = useState(null);
   const [records, setRecords] = useState({});
-  const [exerciseLog, setExerciseLog] = useState({});
-  // { "2025-01-15": { minutes: 30, steps: 4200 }, ... }
 
   // 달력 상태 관리 (현재 날짜 기준)
   const today = new Date();
   const [currentYear, setCurrentYear] = useState(today.getFullYear());
   const [currentMonth, setCurrentMonth] = useState(today.getMonth());
-
-  // wearData 있으면 오늘 날짜에 자동으로 점 표시
-  useEffect(() => {
-    if (wearData?.steps > 0 || wearData?.exerciseMinutes > 0) {
-      const todayKey = new Date().toISOString().split("T")[0];
-      setExerciseLog(prev => ({
-        ...prev,
-        [todayKey]: {
-          steps: wearData.steps,
-          minutes: wearData.exerciseMinutes
-        }
-      }));
-    }
-  }, [wearData]);
 
   useEffect(() => {
     if (wearData) {
@@ -77,15 +63,66 @@ function ExerciseScreen() {
     }
   };
 
+  const getRecordLabel = (record) => {
+    if (typeof record === "string") return record;
+    return `${record.type} ${record.duration} (${record.intensity})${record.memo ? ` · ${record.memo}` : ""}`;
+  };
+
+  const resetRecordForm = () => {
+    setExerciseType("헬스");
+    setDuration("30분");
+    setIntensity("보통");
+    setMemo("");
+    setEditingIndex(null);
+  };
+
+  const openAddModal = () => {
+    resetRecordForm();
+    setShowAddModal(true);
+  };
+
+  const openEditModal = (record, idx) => {
+    if (typeof record === "string") {
+      setExerciseType(record.split(" ")[0] || "헬스");
+      setDuration(record.match(/\d+분/)?.[0] || "30분");
+      setIntensity(record.match(/\(([^)]+)\)/)?.[1] || "보통");
+      setMemo("");
+    } else {
+      setExerciseType(record.type || "헬스");
+      setDuration(record.duration || "30분");
+      setIntensity(record.intensity || "보통");
+      setMemo(record.memo || "");
+    }
+    setEditingIndex(idx);
+    setShowAddModal(true);
+  };
+
+  const handleDeleteRecord = (idx) => {
+    if (!confirm("이 운동 기록을 삭제할까요?")) return;
+    setRecords(prev => ({
+      ...prev,
+      [dateKey]: (prev[dateKey] || []).filter((_, recordIdx) => recordIdx !== idx)
+    }));
+  };
+
   // 수동 기록 저장 처리
   const handleSaveManualRecord = () => {
     const dateKey = `${currentYear}-${currentMonth + 1}-${selectedDay}`;
-    const newRecord = `${exerciseType} ${duration} (${intensity})`;
+    const newRecord = {
+      id: Date.now(),
+      type: exerciseType,
+      duration,
+      intensity,
+      memo: memo.trim()
+    };
     setRecords(prev => ({
       ...prev,
-      [dateKey]: [...(prev[dateKey] || []), newRecord]
+      [dateKey]: editingIndex === null
+        ? [...(prev[dateKey] || []), newRecord]
+        : (prev[dateKey] || []).map((record, idx) => idx === editingIndex ? newRecord : record)
     }));
     setShowAddModal(false);
+    resetRecordForm();
   };
 
   const dateKey = `${currentYear}-${currentMonth + 1}-${selectedDay}`;
@@ -93,9 +130,9 @@ function ExerciseScreen() {
 
   return (
     <div style={S.screen}>
-      <div style={S.scrollArea}>
-        <div style={{ padding: "20px 16px 16px" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 4 }}>
+      <div style={{ ...S.scrollArea, paddingTop: 82 }}>
+        <div style={{ padding: "0 16px 16px" }}>
+          <div style={{ ...S.topBar, display: "flex", justifyContent: "space-between", alignItems: "flex-start", padding: "20px 16px 12px", borderBottom: "1px solid #F3F4F6" }}>
             <div>
               <h2 style={{ fontWeight: 700, fontSize: 20, margin: 0 }}>운동 기록</h2>
               <p style={{ fontSize: 12, color: "#6B7280", margin: "2px 0 0" }}>
@@ -219,16 +256,18 @@ function ExerciseScreen() {
               {dayRecords.map((rec, idx) => (
                 <div key={idx} style={{ ...S.card, display: "flex", gap: 10, alignItems: "center", marginBottom: 0 }}>
                   <span style={{ fontSize: 20 }}>🏃</span>
-                  <span style={{ fontSize: 14, fontWeight: 600 }}>{rec}</span>
+                  <span style={{ fontSize: 14, fontWeight: 600, flex: 1 }}>{getRecordLabel(rec)}</span>
+                  <button onClick={() => openEditModal(rec, idx)} style={{ background: "none", border: "none", color: "#2563EB", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>수정</button>
+                  <button onClick={() => handleDeleteRecord(idx)} style={{ background: "none", border: "none", color: "#EF4444", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>삭제</button>
                 </div>
               ))}
-              <button onClick={() => setShowAddModal(true)} style={{ background: "none", border: "1px dashed #E5E7EB", borderRadius: 12, padding: "12px 0", color: "#6B7280", cursor: "pointer", fontSize: 13, width: "100%", marginTop: 4 }}>+ 운동 직접 추가</button>
+              <button onClick={openAddModal} style={{ background: "none", border: "1px dashed #E5E7EB", borderRadius: 12, padding: "12px 0", color: "#6B7280", cursor: "pointer", fontSize: 13, width: "100%", marginTop: 4 }}>+ 운동 직접 추가</button>
             </div>
           ) : (
             <div style={{ textAlign: "center", padding: "40px 0", color: "#9CA3AF" }}>
               <div style={{ fontSize: 40, marginBottom: 8 }}>🏃</div>
               <p style={{ fontSize: 14, margin: "0 0 12px" }}>이 날의 운동 기록이 없어요.</p>
-              <button onClick={() => setShowAddModal(true)} style={{ background: "none", border: "1px solid #E5E7EB", borderRadius: 20, padding: "6px 16px", color: "#6B7280", cursor: "pointer", fontSize: 13 }}>+ 운동 기록 추가</button>
+              <button onClick={openAddModal} style={{ background: "none", border: "1px solid #E5E7EB", borderRadius: 20, padding: "6px 16px", color: "#6B7280", cursor: "pointer", fontSize: 13 }}>+ 운동 기록 추가</button>
             </div>
           )}
         </div>
@@ -236,11 +275,11 @@ function ExerciseScreen() {
 
       {/* 운동 추가 모달 */}
       {showAddModal && (
-        <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.3)", zIndex: 200 }} onClick={() => setShowAddModal(false)}>
-          <div onClick={e => e.stopPropagation()} style={{ position: "absolute", bottom: 0, left: 0, right: 0, background: "#fff", borderRadius: "20px 20px 0 0", padding: "20px 20px 80px", maxHeight: "90vh", overflowY: "auto" }}>
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.3)", zIndex: 400 }} onClick={() => { setShowAddModal(false); resetRecordForm(); }}>
+          <div onClick={e => e.stopPropagation()} style={{ position: "fixed", bottom: 0, left: 0, right: 0, margin: "0 auto", width: "100%", maxWidth: 390, background: "#fff", borderRadius: "20px 20px 0 0", padding: "20px 20px 80px", maxHeight: "90vh", overflowY: "auto", boxSizing: "border-box", zIndex: 500 }}>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
-              <span style={{ fontWeight: 700, fontSize: 16 }}>운동 기록 추가</span>
-              <button onClick={() => setShowAddModal(false)} style={{ background: "none", border: "none", fontSize: 18, cursor: "pointer" }}>✕</button>
+              <span style={{ fontWeight: 700, fontSize: 16 }}>{editingIndex === null ? "운동 기록 추가" : "운동 기록 수정"}</span>
+              <button onClick={() => { setShowAddModal(false); resetRecordForm(); }} style={{ background: "none", border: "none", fontSize: 18, cursor: "pointer" }}>✕</button>
             </div>
             <p style={{ fontSize: 13, fontWeight: 600, margin: "0 0 8px" }}>운동 종류</p>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
@@ -267,8 +306,13 @@ function ExerciseScreen() {
               </div>
             )}
             <p style={{ fontSize: 13, fontWeight: 600, margin: "0 0 4px" }}>메모 (선택)</p>
-            <input placeholder="예: 공원 3바퀴" style={{ width: "100%", border: "1px solid #E5E7EB", borderRadius: 10, padding: "12px 14px", fontSize: 14, boxSizing: "border-box", marginBottom: 16 }} />
-            <button onClick={handleSaveManualRecord} style={S.btn()}>저장하기</button>
+            <input
+              value={memo}
+              onChange={e => setMemo(e.target.value)}
+              placeholder="예: 공원 3바퀴"
+              style={{ width: "100%", border: "1px solid #E5E7EB", borderRadius: 10, padding: "12px 14px", fontSize: 14, boxSizing: "border-box", marginBottom: 16 }}
+            />
+            <button onClick={handleSaveManualRecord} style={S.btn()}>{editingIndex === null ? "저장하기" : "수정 완료"}</button>
           </div>
         </div>
       )}

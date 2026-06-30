@@ -59,15 +59,16 @@ function AnalyzeScreen({ setScreen, back }) {
     const sys = Number(bp.systolic);
     const dia = Number(bp.diastolic);
     if (sys >= 140 || dia >= 90) return { status: "고혈압", color: "#DC2626", pct: 100 };
-    if (sys >= 120 || dia >= 80) return { status: "주의", color: "#F59E0B", pct: 66 };
+    if (sys <= 120 && dia <= 80) return { status: "정상", color: "#10B981", pct: 33 };
+    if (sys >= 121 || dia >= 81) return { status: "주의", color: "#F59E0B", pct: 66 };
     return { status: "정상", color: "#10B981", pct: 33 };
   };
 
   const getExerciseInfo = (ex) => {
     if (!ex) return { status: "미측정", color: "#9CA3AF", pct: 0 };
-    if (ex === "주 5회 이상") return { status: "최상", color: "#10B981", pct: 100 };
-    if (ex === "주 3~4회") return { status: "양호", color: "#10B981", pct: 75 };
-    if (ex === "주 1~2회") return { status: "보통", color: "#F59E0B", pct: 50 };
+    if (ex === "매일" || ex === "주 5회 이상" || ex === "5일 이상") return { status: "최상", color: "#10B981", pct: 100 };
+    if (ex === "주 3~4회" || ex === "주 3-4회" || ex === "3~4일") return { status: "양호", color: "#10B981", pct: 75 };
+    if (ex === "주 1~2회" || ex === "주 1-2회" || ex === "1~2일") return { status: "보통", color: "#F59E0B", pct: 50 };
     return { status: "부족", color: "#DC2626", pct: 25 };
   };
 
@@ -91,6 +92,9 @@ function AnalyzeScreen({ setScreen, back }) {
   const exInfo = getExerciseInfo(user.exercise);
   const smInfo = getSmokingInfo(user.smoking);
   const drInfo = getDrinkingInfo(user.drinking);
+  const bpSummary = hasBP
+    ? `혈압(${user.bloodPressure.systolic}/${user.bloodPressure.diastolic}mmHg)은 ${bpInfo.status} 범위입니다`
+    : "혈압은 아직 측정되지 않았습니다";
 
   const indicators = [
     {
@@ -108,17 +112,17 @@ function AnalyzeScreen({ setScreen, back }) {
       badge: "직접 입력",
       status: bpInfo.status,
       value: bpValue,
-      rank: hasBP ? (user.bloodPressure.systolic >= 140 ? "상위 90%" : user.bloodPressure.systolic >= 120 ? "상위 65%" : "상위 20%") : "-",
+      rank: hasBP ? (user.bloodPressure.systolic >= 140 || user.bloodPressure.diastolic >= 90 ? "상위 90%" : user.bloodPressure.systolic > 120 || user.bloodPressure.diastolic > 80 ? "상위 65%" : "상위 20%") : "-",
       pct: bpInfo.pct,
       color: bpInfo.color,
-      normal: "정상범위: < 120"
+      normal: "정상범위: 120/80mmHg 이하"
     },
     {
       label: "운동빈도",
       badge: "직접 입력",
       status: exInfo.status,
       value: user.exercise || "-",
-      rank: user.exercise ? (user.exercise === "거의 안 함" ? "상위 95%" : "상위 35%") : "-",
+      rank: user.exercise ? (["거의 안 함", "0일"].includes(user.exercise) ? "상위 95%" : "상위 35%") : "-",
       pct: exInfo.pct,
       color: exInfo.color,
       normal: "정상범위: 주 3회 이상"
@@ -138,24 +142,24 @@ function AnalyzeScreen({ setScreen, back }) {
       badge: "직접 입력",
       status: drInfo.status,
       value: user.drinking || "-",
-      rank: user.drinking ? (user.drinking === "거의 안 함" ? "상위 30%" : "상위 70%") : "-",
+      rank: user.drinking ? (["거의 안 함", "안함"].includes(user.drinking) ? "상위 30%" : "상위 70%") : "-",
       pct: drInfo.pct,
       color: drInfo.color,
-      normal: "정상범위: 거의 안 함"
+      normal: "정상범위: 안함"
     }
   ];
 
   return (
     <div style={S.screen}>
-      <div style={{ background: "#fff", padding: "16px 20px", display: "flex", alignItems: "center", gap: 12 }}>
+      <div style={{ ...S.topBar, padding: "16px 20px", display: "flex", alignItems: "center", gap: 12, flexShrink: 0, borderBottom: "1px solid #F3F4F6" }}>
         <button onClick={back} style={{ background: "none", border: "none", fontSize: 20, cursor: "pointer" }}>←</button>
         <span style={{ fontWeight: 700, fontSize: 16 }}>현재 건강 분석</span>
       </div>
-      <div style={S.scrollArea}>
+      <div style={{ ...S.scrollArea, paddingTop: 57 }}>
         <div style={{ padding: 16 }}>
           <div style={{ background: "#EFF6FF", borderRadius: 12, padding: "10px 14px", marginBottom: 16 }}>
             <p style={{ fontSize: 12, color: "#1D4ED8", margin: 0 }}>입력한 기본 정보와 Wear OS 연동 데이터를 바탕으로 현재 건강 위험도를 추정했어요.</p>
-            <p style={{ fontSize: 12, color: "#1D4ED8", fontWeight: 600, margin: "4px 0 0" }}>KNHANES 2022 기준·동연령·성별 집단 비교</p>
+            <p style={{ fontSize: 12, color: "#1D4ED8", fontWeight: 600, margin: "4px 0 0" }}>KNHANES 2024 기준·동연령·성별 집단 비교</p>
           </div>
 
           {/* 위험도 신호등 */}
@@ -168,7 +172,14 @@ function AnalyzeScreen({ setScreen, back }) {
                 { label: "대사증후군", key: "metabolic" },
                 { label: "비만",       key: "obesity" },
               ].map(({ label, key }) => {
-                const val = risks?.[key] ?? null;
+                let val = risks?.[key] ?? null;
+                if (val !== null) {
+                  if (key === "diabetes" || key === "hypertension" || key === "metabolic") {
+                    val = val * 100;
+                  } else if (key === "obesity") {
+                    val = val === 1 ? 75 : 10;
+                  }
+                }
                 const rl = riskLevel(val);
                 return (
                   <div key={key} style={{ textAlign: "center" }}>
@@ -219,7 +230,7 @@ function AnalyzeScreen({ setScreen, back }) {
               <span>✨</span><span style={{ fontWeight: 600, color: "#4338CA" }}>AI 요약</span>
             </div>
             <p style={{ fontSize: 13, lineHeight: 1.6, margin: 0, color: "#374151" }}>
-              BMI({bmiValue ?? "-"})·혈압({hasBP ? user.bloodPressure.systolic : "-"}mmHg)이 경계 수준이며,
+              BMI({bmiValue ?? "-"})와 {bpSummary}.
               활동량이 목표의 {user.steps != null ? Math.round(user.steps / 8000 * 100) : "-"}%에 불과합니다.
               운동빈도도 권장 기준 미달입니다. 이 패턴은{" "}
               <span style={{ color: "#EF4444", fontWeight: 600 }}>심혈관 위험군의 초기 징후</span>입니다.

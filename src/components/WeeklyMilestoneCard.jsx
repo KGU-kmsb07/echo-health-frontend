@@ -17,7 +17,7 @@ export function getWeeklyResult(days) {
   return "미달성";
 }
 
-function WeeklyMilestoneCard({ week, days, planStartDate }) {
+function WeeklyMilestoneCard({ week, days, planStartDate, selectedDayIndex, onSelectDay }) {
   const getStatusStyles = (status) => {
     switch (status) {
       case "success":
@@ -59,9 +59,9 @@ function WeeklyMilestoneCard({ week, days, planStartDate }) {
       
       {/* 7일 가로 선형 마일스톤 UI */}
       <div style={{
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
+        display: "grid",
+        gridTemplateColumns: "32px 1fr 32px 1fr 32px 1fr 32px 1fr 32px 1fr 32px 1fr 32px",
+        alignItems: "start",
         margin: "8px 0 14px",
         position: "relative",
         padding: "0 2px"
@@ -69,16 +69,21 @@ function WeeklyMilestoneCard({ week, days, planStartDate }) {
         {days.map((d, idx) => {
           const cfg = getStatusStyles(d.status);
           const dayName = getDayName(idx);
+          const isSelected = idx === selectedDayIndex;
           return (
             <React.Fragment key={idx}>
-              <div style={{
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                gap: 4,
-                zIndex: 2,
-                position: "relative"
-              }}>
+              <div 
+                onClick={() => onSelectDay && onSelectDay(idx)}
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  gap: 4,
+                  zIndex: 2,
+                  position: "relative",
+                  cursor: "pointer"
+                }}
+              >
                 <div
                   style={{
                     width: 32,
@@ -86,13 +91,15 @@ function WeeklyMilestoneCard({ week, days, planStartDate }) {
                     borderRadius: "50%",
                     background: cfg.bg,
                     color: cfg.color,
-                    border: cfg.border,
+                    border: isSelected ? "3px solid #10B981" : cfg.border,
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
                     fontSize: 11,
                     fontWeight: 700,
-                    boxShadow: "0 1px 4px rgba(0,0,0,0.02)",
+                    boxShadow: isSelected ? "0 0 8px rgba(16, 185, 129, 0.4)" : "0 1px 4px rgba(0,0,0,0.02)",
+                    transform: isSelected ? "scale(1.1)" : "scale(1)",
+                    transition: "all 0.2s",
                     userSelect: "none"
                   }}
                 >
@@ -110,11 +117,10 @@ function WeeklyMilestoneCard({ week, days, planStartDate }) {
               
               {idx < days.length - 1 && (
                 <div style={{
-                  flex: 1,
+                  width: "100%",
                   height: 2,
                   borderBottom: "2px dashed #E5E7EB",
-                  margin: "0 -4px",
-                  transform: "translateY(-8px)",
+                  transform: "translateY(16px)",
                   zIndex: 1
                 }} />
               )}

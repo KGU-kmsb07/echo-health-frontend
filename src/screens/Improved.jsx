@@ -13,11 +13,23 @@ function riskLevel(value) {
 function calcFutureRisk(risks, user) {
   if (!user || user.age === null || user.age === undefined) return { diabetes: null, hypertension: null, metabolic: null, obesity: null };
   const factor = 1 + (0.05 * (1 + (user.age - 20) / 100));
+
+  // risks에 들어있는 값들이 소수(0.0~1.0) 또는 obesity의 경우 0/1 이진값이므로 백분율로 환산하여 계산
+  const dVal = risks?.diabetes !== null && risks?.diabetes !== undefined ? risks.diabetes * 100 : null;
+  const hVal = risks?.hypertension !== null && risks?.hypertension !== undefined ? risks.hypertension * 100 : null;
+  const mVal = risks?.metabolic !== null && risks?.metabolic !== undefined ? risks.metabolic * 100 : null;
+
+  // obesity: 1이면 75%, 0이면 10%로 가상의 백분율 환산
+  let oVal = null;
+  if (risks?.obesity !== null && risks?.obesity !== undefined) {
+    oVal = risks.obesity === 1 ? 75 : 10;
+  }
+
   return {
-    diabetes:     risks?.diabetes !== null && risks?.diabetes !== undefined ? Math.min(99, Math.round(risks.diabetes * factor * 1.4)) : null,
-    hypertension: risks?.hypertension !== null && risks?.hypertension !== undefined ? Math.min(99, Math.round(risks.hypertension * factor * 1.3)) : null,
-    metabolic:    risks?.metabolic !== null && risks?.metabolic !== undefined ? Math.min(99, Math.round(risks.metabolic * factor * 1.35)) : null,
-    obesity:      risks?.obesity !== null && risks?.obesity !== undefined ? Math.min(99, Math.round(risks.obesity * factor * 1.2)) : null,
+    diabetes:     dVal !== null ? Math.min(99, Math.round(dVal * factor * 1.4)) : null,
+    hypertension: hVal !== null ? Math.min(99, Math.round(hVal * factor * 1.3)) : null,
+    metabolic:    mVal !== null ? Math.min(99, Math.round(mVal * factor * 1.35)) : null,
+    obesity:      oVal !== null ? Math.min(99, Math.round(oVal * factor * 1.2)) : null,
   };
 }
 
@@ -102,11 +114,11 @@ function ImprovedScreen({ setScreen, setTab, back }) {
 
   return (
     <div style={S.screen}>
-      <div style={{ background: "#fff", padding: "16px 20px", display: "flex", alignItems: "center", gap: 12 }}>
+      <div style={{ ...S.topBar, padding: "16px 20px", display: "flex", alignItems: "center", gap: 12, flexShrink: 0, borderBottom: "1px solid #F3F4F6" }}>
         <button onClick={back} style={{ background: "none", border: "none", fontSize: 20, cursor: "pointer" }}>←</button>
         <span style={{ fontWeight: 700, fontSize: 16 }}>개선된 미래 나</span>
       </div>
-      <div style={S.scrollArea}>
+      <div style={{ ...S.scrollArea, paddingTop: 57 }}>
         <div style={{ padding: 16 }}>
           <div style={{ ...S.card }}>
             <div style={{ display: "flex", gap: 12, justifyContent: "center", marginBottom: 16 }}>
@@ -220,7 +232,7 @@ function ImprovedScreen({ setScreen, setTab, back }) {
       {showModal && (
         <div style={{
           position: "fixed", inset: 0,
-          background: "rgba(0,0,0,0.4)", zIndex: 200,
+          background: "rgba(0,0,0,0.4)", zIndex: 400,
           display: "flex", alignItems: "flex-end",
           justifyContent: "center"
         }}>

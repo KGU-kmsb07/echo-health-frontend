@@ -30,16 +30,24 @@ const riskColor = (value) => {
   return "#16A34A"; 
 };
 
+const normalizeExerciseOption = (value) => {
+  if (value === "거의 안 함") return "0일";
+  if (value === "주 1~2회" || value === "주 1-2회") return "1~2일";
+  if (value === "주 3~4회" || value === "주 3-4회") return "3~4일";
+  if (value === "주 5회 이상") return "5일 이상";
+  return value || "0일";
+};
+
 function SimulateScreen({ setScreen, back }) {
-  const { user, wearData, risks, calculateHealthData, updateSimulationResult, updateUser, showLoading, hideLoading, setWeeklyGoals, navigateWithLoading } = useHealth();
+  const { user, wearData, risks, updateSimulationResult, showLoading, hideLoading, setWeeklyGoals, navigateWithLoading } = useHealth();
 
   const [weight, setWeight] = useState(user?.weight ?? "");
   const [systolic, setSystolic] = useState(user?.bloodPressure?.systolic ?? 120);
   const [diastolic, setDiastolic] = useState(user?.bloodPressure?.diastolic ?? 80);
   const [steps, setSteps] = useState(wearData?.steps ?? 5000);
-  const [exercise, setExercise] = useState(user?.exercise ?? "거의 안 함");
+  const [exercise, setExercise] = useState(normalizeExerciseOption(user?.exercise));
   const [smoking, setSmoking] = useState(user?.smoking ?? "비흡연");
-  const [drinking, setDrinking] = useState(user?.drinking ?? "거의 안 함");
+  const [drinking, setDrinking] = useState(user?.drinking ?? "안함");
   const [showValidation, setShowValidation] = useState(false);
 
   const isValid =
@@ -67,7 +75,6 @@ function SimulateScreen({ setScreen, back }) {
       height_cm: Number(user.height),
       weight_kg: Number(weight),
       waist_cm: Number(user.waist) || 80,
-      bmi: Number(weight) / ((Number(user.height) / 100) ** 2),
       systolic_bp: Number(systolic),
       diastolic_bp: Number(diastolic),
       fasting_glucose: 90,
@@ -77,7 +84,7 @@ function SimulateScreen({ setScreen, back }) {
       triglyceride: 120,
       ldl_direct: 110,
       current_smoking: smoking !== "비흡연" ? 1 : 0,
-      aerobic_activity: exercise === "거의 안 함" ? 0 : 1
+      aerobic_activity: ["거의 안 함", "0일"].includes(exercise) ? 0 : 1
     };
 
     try {
@@ -89,6 +96,8 @@ function SimulateScreen({ setScreen, back }) {
           hypertension_prob: result.hypertension_prob,
           diabetes_prob: result.diabetes_prob,
           vitality_score: result.vitality_score,
+          health_age: result.health_age,
+          healthAge: result.healthAge,
           simulatedInputs: {
             weight: Number(weight),
             bloodPressure: {
@@ -116,7 +125,7 @@ function SimulateScreen({ setScreen, back }) {
   return (
     <div style={{ ...S.screen, display: "flex", flexDirection: "column", height: "100vh" }}>
       {/* Header */}
-      <div style={{ background: "#fff", padding: "16px 20px", display: "flex", alignItems: "center", gap: 12, flexShrink: 0 }}>
+      <div style={{ ...S.topBar, padding: "16px 20px", display: "flex", alignItems: "center", gap: 12, flexShrink: 0, borderBottom: "1px solid #F3F4F6" }}>
         <button onClick={back} style={{ background: "none", border: "none", fontSize: 20, cursor: "pointer" }}>←</button>
         <div>
           <span style={{ fontWeight: 700, fontSize: 16 }}>행동 변화 시뮬레이션</span>
@@ -125,7 +134,7 @@ function SimulateScreen({ setScreen, back }) {
       </div>
 
       {/* 스크롤 영역 */}
-      <div style={{ ...S.scrollArea, flex: 1, padding: "16px 16px 24px", paddingBottom: 100 }}>
+      <div style={{ ...S.scrollArea, flex: 1, padding: "90px 16px 24px", paddingBottom: 100 }}>
         
         {/* 체중 조절 */}
         <div style={S.card}>
@@ -213,7 +222,7 @@ function SimulateScreen({ setScreen, back }) {
         <div style={S.card}>
           <p style={{ fontWeight: 600, margin: "0 0 10px", fontSize: 14 }}>운동 빈도</p>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            {["거의 안 함", "주 1~2회", "주 3~4회", "주 5회 이상"].map(option => (
+            {["0일", "1~2일", "3~4일", "5일 이상", "매일"].map(option => (
               <button 
                 key={option} 
                 type="button" 
@@ -257,7 +266,7 @@ function SimulateScreen({ setScreen, back }) {
         <div style={S.card}>
           <p style={{ fontWeight: 600, margin: "0 0 10px", fontSize: 14 }}>음주 빈도</p>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            {["거의 안 함", "월 1~3회", "주 1~2회", "주 3회 이상"].map(option => (
+            {["안함", "월 1~3회", "주 1~2회", "주 3회 이상"].map(option => (
               <button 
                 key={option} 
                 type="button" 

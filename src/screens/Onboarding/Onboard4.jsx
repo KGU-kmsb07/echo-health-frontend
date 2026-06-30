@@ -4,11 +4,19 @@ import { useHealth } from '../../context/HealthContext';
 import { analyzeHealth } from '../../api/echoApi';
 import { saveAnalysisResult } from '../../storage/localStore';
 
+const normalizeExerciseOption = (value) => {
+  if (value === "거의 안 함") return "0일";
+  if (value === "주 1~2회" || value === "주 1-2회") return "1~2일";
+  if (value === "주 3~4회" || value === "주 3-4회") return "3~4일";
+  if (value === "주 5회 이상") return "5일 이상";
+  return value || "";
+};
+
 function Onboard4({ next, back }) {
   const { user, updateAnalysisResult, updateUser, showLoading, hideLoading, isEditMode } = useHealth();
   const [smoking, setSmoking] = useState(user?.smoking || "");
   const [drinking, setDrinking] = useState(user?.drinking || "");
-  const [exercise, setExercise] = useState(user?.exercise || "");
+  const [exercise, setExercise] = useState(normalizeExerciseOption(user?.exercise));
   const [errors, setErrors] = useState({});
 
   const handleStart = async () => {
@@ -41,7 +49,7 @@ function Onboard4({ next, back }) {
         triglyceride: 120,
         ldl_direct: 110,
         current_smoking: smoking !== "비흡연" ? 1 : 0,
-        aerobic_activity: exercise === "거의 안 함" ? 0 : 1
+        aerobic_activity: exercise === "0일" ? 0 : 1
       };
 
       const result = await analyzeHealth(userData);
@@ -98,13 +106,14 @@ function Onboard4({ next, back }) {
 
         <p style={{ fontSize: 13, color: "#374151", margin: "0 0 6px", fontWeight: 500 }}>음주 빈도</p>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 14, border: errors.drinking ? "1px solid #EF4444" : "none", borderRadius: 10, padding: errors.drinking ? 4 : 0 }}>
-          {["거의 안 함", "월 1-3회", "주 1-2회", "주 3회 이상"].map(d => <button key={d} type="button" style={S.chip(drinking === d)} onClick={() => { setDrinking(d); if(errors.drinking) setErrors(prev=>({...prev, drinking: null})); }}>{d}</button>)}
+          {["안함", "월 1-3회", "주 1-2회", "주 3회 이상"].map(d => <button key={d} type="button" style={S.chip(drinking === d)} onClick={() => { setDrinking(d); if(errors.drinking) setErrors(prev=>({...prev, drinking: null})); }}>{d}</button>)}
         </div>
         {errors.drinking && <p style={{ color: "#EF4444", fontSize: 11, margin: "4px 0 0" }}>{errors.drinking}</p>}
 
-        <p style={{ fontSize: 13, color: "#374151", margin: "0 0 6px", fontWeight: 500 }}>운동빈도</p>
+        <p style={{ fontSize: 13, color: "#374151", margin: "0 0 4px", fontWeight: 500 }}>최근 1주일 운동 빈도</p>
+        <p style={{ fontSize: 11, color: "#9CA3AF", margin: "0 0 6px" }}>숨이 조금 차는 걷기 이상 활동을 20분 이상 한 날을 기준으로 선택해주세요.</p>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 14, border: errors.exercise ? "1px solid #EF4444" : "none", borderRadius: 10, padding: errors.exercise ? 4 : 0 }}>
-          {["거의 안 함", "주 1~2회", "주 3~4회", "주 5회 이상", "선택 안 함"].map(e => <button key={e} type="button" style={S.chip(exercise === e)} onClick={() => { setExercise(e); if(errors.exercise) setErrors(prev=>({...prev, exercise: null})); }}>{e}</button>)}
+          {["0일", "1~2일", "3~4일", "5일 이상", "매일"].map(e => <button key={e} type="button" style={S.chip(exercise === e)} onClick={() => { setExercise(e); if(errors.exercise) setErrors(prev=>({...prev, exercise: null})); }}>{e}</button>)}
         </div>
         {errors.exercise && <p style={{ color: "#EF4444", fontSize: 11, margin: "4px 0 0" }}>{errors.exercise}</p>}
       </div>

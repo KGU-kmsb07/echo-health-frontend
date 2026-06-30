@@ -1,6 +1,6 @@
 import { useState, useRef } from "react";
 import S from '../styles/shared';
-import { MOCK_CHAT, QUICK_CHAT_HINTS } from '../mock/mockData';
+import { QUICK_CHAT_HINTS } from '../mock/mockData';
 import { runCoach } from '../services/coachService';
 import { useHealth } from '../context/HealthContext';
 
