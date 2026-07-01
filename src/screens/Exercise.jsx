@@ -3,6 +3,7 @@ import S from '../styles/shared';
 import { ProgressBar } from '../components/Card';
 import { useHealth } from '../context/HealthContext';
 import { loadExerciseRecords, saveExerciseRecords, loadMileage, saveMileage } from "../storage/localStore";
+import { requestWearOSPermissionAndSync } from "../services/healthConnectService";
 
 const EXERCISE_OPTIONS = [
   { name: "걷기", met: 3.3 },
@@ -152,7 +153,7 @@ const normalizeWearOSPayload = (wearData) => {
 };
 
 function ExerciseScreen() {
-  const { user, wearData, todaySteps, updateTodaySteps, weeklyGoals } = useHealth();
+  const { user, wearData, todaySteps, updateTodaySteps, weeklyGoals, disconnectWearOS } = useHealth();
   const [showAddModal, setShowAddModal] = useState(false);
   const [addModalStartY, setAddModalStartY] = useState(0);
   const [addModalClosing, setAddModalClosing] = useState(false);
@@ -163,6 +164,11 @@ function ExerciseScreen() {
   const [memo, setMemo] = useState("");
   const [editingIndex, setEditingIndex] = useState(null);
   const [records, setRecords] = useState(() => loadExerciseRecords());
+  const [wearSyncing, setWearSyncing] = useState(false);
+  const wearVitals = user?.wearVitals || {};
+  const wearBp = wearVitals.bloodPressure || user?.bloodPressure || {};
+  const wearSessionCount = Array.isArray(wearData?.sessions) ? wearData.sessions.length : 0;
+  const wearConnected = Boolean(user?.wearLastSyncedAt || wearData);
 
   // 달력 상태 관리 (현재 날짜 기준)
   const today = new Date();
@@ -241,8 +247,24 @@ function ExerciseScreen() {
   const calendarDays = [...blanks, ...actualDays];
 
   // Wear OS 동기화 기록 처리
-  const handleSync = () => {
-    applyWearOSData(wearData, { saveSessions: true });
+  const handleSync = async () => {
+    setWearSyncing(true);
+    try {
+      const payload = await requestWearOSPermissionAndSync();
+      applyWearOSData(payload || wearData, { saveSessions: true });
+    } catch (error) {
+      alert(error.message || "Wear OS sync failed.");
+    } finally {
+      setWearSyncing(false);
+    }
+  };
+
+  const handleRefresh = () => {
+    window.location.reload();
+  };
+
+  const handleDisconnect = () => {
+    disconnectWearOS?.();
   };
 
   const getRecordLabel = (record) => {
@@ -350,6 +372,39 @@ function ExerciseScreen() {
               <p style={{ fontSize: 12, color: "#6B7280", margin: "2px 0 0" }}>
                 이번 달 {Object.keys(records).filter(k => k.startsWith(`${currentYear}-${String(currentMonth + 1).padStart(2, "0")}-`)).length}일 운동했어요
               </p>
+            </div>
+          </div>
+          <div style={{ ...S.card, marginBottom: 12 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center", marginBottom: 10 }}>
+              <div>
+                <p style={{ fontWeight: 700, margin: "0 0 3px", fontSize: 14 }}>Wear OS 동기화</p>
+                <p style={{ margin: 0, fontSize: 11, color: "#6B7280" }}>
+                  {user?.wearLastSyncedAt ? `최근 동기화 ${new Date(user.wearLastSyncedAt).toLocaleString()}` : "아직 동기화되지 않음"}
+                </p>
+              </div>
+              <span style={{ fontSize: 11, fontWeight: 800, color: wearConnected ? "#15803D" : "#6B7280" }}>
+                {wearConnected ? "연동됨" : "미동기화"}
+              </span>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, fontSize: 12, color: "#374151", marginBottom: 12 }}>
+              <span>걸음 {(wearVitals.steps ?? todaySteps)?.toLocaleString?.() || "-"}</span>
+              <span>심박 {wearVitals.heartRate ? `${wearVitals.heartRate} bpm` : "-"}</span>
+              <span>혈압 {wearBp.systolic && wearBp.diastolic ? `${wearBp.systolic}/${wearBp.diastolic}` : "-"}</span>
+              <span>운동 기록 {wearSessionCount}</span>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+              <button onClick={handleSync} disabled={wearSyncing} style={{ ...S.btn("outline"), opacity: wearSyncing ? 0.7 : 1 }}>
+                {wearSyncing ? "동기화 중..." : "동기화"}
+              </button>
+              <button onClick={handleRefresh} style={S.btn("outline")}>
+                새로고침
+              </button>
+              <button onClick={handleDisconnect} disabled={!wearConnected} style={{ ...S.btn("outline"), opacity: wearConnected ? 1 : 0.45, gridColumn: "1 / -1" }}>
+                연결 끄기
+              </button>
+            </div>
+            <div style={{ marginTop: 8, padding: "8px 10px", borderRadius: 8, background: wearConnected ? "#ECFDF5" : "#F9FAFB", color: wearConnected ? "#15803D" : "#6B7280", fontSize: 12, fontWeight: 800, textAlign: "center" }}>
+              {wearConnected ? "동기화됨" : "미동기화"}
             </div>
           </div>
           <div style={S.card}>
@@ -464,7 +519,7 @@ function ExerciseScreen() {
                 운동 추가
               </button>
             </div>
-            <button onClick={handleSync} style={{ ...S.btn("outline"), width: "100%" }}>
+            <button onClick={handleSync} disabled={wearSyncing} style={{ ...S.btn("outline"), width: "100%", opacity: wearSyncing ? 0.7 : 1, display: "none" }}>
               ⌚ Wear OS 동기화
             </button>
           </div>

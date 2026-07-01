@@ -1,6 +1,7 @@
 import { useState } from "react";
 import S from '../../styles/shared';
 import { useHealth } from '../../context/HealthContext';
+import { isHealthConnectAvailableInApp, requestWearOSPermissionAndSync } from "../../services/healthConnectService";
 
 const restrictInteger = (val, max = 3) => {
   const numOnly = val.replace(/[^0-9]/g, "");
@@ -13,6 +14,31 @@ function OnboardStep3({ next, back }) {
   const [systolic, setSystolic] = useState(hasOnboarded && user?.bpMode === "manual" ? user?.bloodPressure?.systolic || "" : "");
   const [diastolic, setDiastolic] = useState(hasOnboarded && user?.bpMode === "manual" ? user?.bloodPressure?.diastolic || "" : "");
   const [errors, setErrors] = useState({});
+  const [wearSyncing, setWearSyncing] = useState(false);
+  const [wearSyncMessage, setWearSyncMessage] = useState("");
+  const [wearOptionsVisible, setWearOptionsVisible] = useState(user?.bpMode === "wear");
+  const wearVitals = user?.wearVitals || {};
+  const wearBp = wearVitals.bloodPressure || user?.bloodPressure || {};
+  const hasWearData = Boolean(user?.wearLastSyncedAt || wearVitals.steps || wearVitals.heartRate || wearBp.systolic);
+  const healthConnectAvailable = isHealthConnectAvailableInApp();
+
+  const handleWearSelect = async () => {
+    setErrors({});
+    setWearSyncMessage("");
+    setMode("wear");
+    setWearOptionsVisible(true);
+    setWearSyncing(true);
+    try {
+      await requestWearOSPermissionAndSync();
+      setMode("wear");
+      setWearSyncMessage("Wear OS 데이터 연동이 완료되었습니다.");
+    } catch (error) {
+      setMode(null);
+      setErrors({ mode: error.message || "Wear OS 권한 요청 또는 동기화에 실패했습니다." });
+    } finally {
+      setWearSyncing(false);
+    }
+  };
 
   const handleNext = () => {
     const newErrors = {};
@@ -68,9 +94,13 @@ function OnboardStep3({ next, back }) {
               key={i} 
               type="button"
               onClick={() => { 
-                if (i === 0) setMode("wear");
+                if (i === 0) {
+                  handleWearSelect();
+                  return;
+                }
                 if (i === 1) setMode("manual");
                 if (i === 2) setMode("skip");
+                setWearOptionsVisible(false);
                 setErrors({});
               }} 
               style={{ 
@@ -83,10 +113,31 @@ function OnboardStep3({ next, back }) {
                 fontWeight: isSelected ? 600 : 400
               }}
             >
-              {opt.label}
+              {i === 0 && wearSyncing ? "Wear OS 권한 확인 중..." : opt.label}
             </button>
           );
         })}
+        {wearOptionsVisible && mode === "wear" && (
+          <div>
+            {wearSyncMessage && <p style={{ color: "#2563EB", fontSize: 11, margin: "0 0 10px" }}>{wearSyncMessage}</p>}
+            <div style={{ border: "1px solid #E5E7EB", borderRadius: 10, padding: 12, background: hasWearData ? "#F0FDF4" : "#F9FAFB", marginTop: 4 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center", marginBottom: 8 }}>
+                <span style={{ fontSize: 12, fontWeight: 800, color: hasWearData ? "#15803D" : "#6B7280" }}>
+                  {hasWearData ? "Wear OS 연동됨" : healthConnectAvailable ? "권한 필요" : "Android 앱에서만 가능"}
+                </span>
+                <span style={{ fontSize: 11, color: "#6B7280" }}>
+                  {user?.wearLastSyncedAt ? new Date(user.wearLastSyncedAt).toLocaleString() : "미동기화"}
+                </span>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, fontSize: 11, color: "#374151" }}>
+                <span>걸음 {wearVitals.steps?.toLocaleString?.() || "-"}</span>
+                <span>심박 {wearVitals.heartRate ? `${wearVitals.heartRate} bpm` : "-"}</span>
+                <span>혈압 {wearBp.systolic && wearBp.diastolic ? `${wearBp.systolic}/${wearBp.diastolic}` : "-"}</span>
+                <span>방식 {mode === "wear" ? "Wear OS" : "-"}</span>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {mode === "manual" && (

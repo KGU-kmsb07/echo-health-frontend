@@ -567,6 +567,24 @@ export function HealthProvider({ children }) {
     mergeExerciseRecords(normalized.recordsByDate);
   };
 
+  const disconnectWearOS = () => {
+    setWearData(null);
+    updateTodaySteps(null);
+    setUserProfile(prev => {
+      const next = { ...prev };
+      delete next.wearVitals;
+      delete next.wearLastSyncedAt;
+      if (next.bpMode === "wear") {
+        next.bpMode = "skip";
+        next.bloodPressure = { systolic: null, diastolic: null };
+      }
+      return next;
+    });
+    if (window.__echoHealthWearData) {
+      delete window.__echoHealthWearData;
+    }
+  };
+
   useEffect(() => {
     const handleWearOSEvent = (event) => {
       applyWearOSPayload(event.detail);
@@ -940,6 +958,7 @@ export function HealthProvider({ children }) {
         setHasOnboarded,
         wearData,
         setWearData,
+        disconnectWearOS,
         checkedState,
         setCheckedState,
         completedTimes,
