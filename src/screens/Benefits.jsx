@@ -5,11 +5,30 @@ import { loadMileage } from "../storage/localStore";
 import { searchBenefits } from "../api/echoApi";
 
 const REGIONS = [
-  "서울", "부산", "대구", "인천", "광주", "대전", "울산", "세종",
+  "국가기관", "서울", "부산", "대구", "인천", "광주", "대전", "울산", "세종",
   "경기", "강원", "충북", "충남", "전북", "전남", "경북", "경남", "제주"
 ];
 
-const QUICK_KEYWORDS = ["건강", "금연", "건강검진", "운동", "비만", "고혈압", "당뇨"];
+const DISTRICTS = {
+  서울: ["종로구", "중구", "용산구", "성동구", "광진구", "동대문구", "중랑구", "성북구", "강북구", "도봉구", "노원구", "은평구", "서대문구", "마포구", "양천구", "강서구", "구로구", "금천구", "영등포구", "동작구", "관악구", "서초구", "강남구", "송파구", "강동구"],
+  부산: ["중구", "서구", "동구", "영도구", "부산진구", "동래구", "남구", "북구", "해운대구", "사하구", "금정구", "강서구", "연제구", "수영구", "사상구", "기장군"],
+  대구: ["중구", "동구", "서구", "남구", "북구", "수성구", "달서구", "달성군", "군위군"],
+  인천: ["중구", "동구", "미추홀구", "연수구", "남동구", "부평구", "계양구", "서구", "강화군", "옹진군"],
+  광주: ["동구", "서구", "남구", "북구", "광산구"],
+  대전: ["동구", "중구", "서구", "유성구", "대덕구"],
+  울산: ["중구", "남구", "동구", "북구", "울주군"],
+  세종: ["세종시"],
+  경기: ["수원시", "성남시", "고양시", "용인시", "부천시", "안산시", "안양시", "남양주시", "화성시", "평택시", "의정부시", "시흥시", "파주시", "김포시", "광명시", "광주시", "군포시", "하남시", "오산시", "양주시", "이천시", "구리시", "안성시", "포천시", "의왕시", "양평군", "여주시", "동두천시", "과천시", "가평군", "연천군"],
+  강원: ["춘천시", "원주시", "강릉시", "동해시", "태백시", "속초시", "삼척시", "홍천군", "횡성군", "영월군", "평창군", "정선군", "철원군", "화천군", "양구군", "인제군", "고성군", "양양군"],
+  충북: ["청주시", "충주시", "제천시", "보은군", "옥천군", "영동군", "증평군", "진천군", "괴산군", "음성군", "단양군"],
+  충남: ["천안시", "공주시", "보령시", "아산시", "서산시", "논산시", "계룡시", "당진시", "금산군", "부여군", "서천군", "청양군", "홍성군", "예산군", "태안군"],
+  전북: ["전주시", "군산시", "익산시", "정읍시", "남원시", "김제시", "완주군", "진안군", "무주군", "장수군", "임실군", "순창군", "고창군", "부안군"],
+  전남: ["목포시", "여수시", "순천시", "나주시", "광양시", "담양군", "곡성군", "구례군", "고흥군", "보성군", "화순군", "장흥군", "강진군", "해남군", "영암군", "무안군", "함평군", "영광군", "장성군", "완도군", "진도군", "신안군"],
+  경북: ["포항시", "경주시", "김천시", "안동시", "구미시", "영주시", "영천시", "상주시", "문경시", "경산시", "의성군", "청송군", "영양군", "영덕군", "청도군", "고령군", "성주군", "칠곡군", "예천군", "봉화군", "울진군", "울릉군"],
+  경남: ["창원시", "진주시", "통영시", "사천시", "김해시", "밀양시", "거제시", "양산시", "의령군", "함안군", "창녕군", "고성군", "남해군", "하동군", "산청군", "함양군", "거창군", "합천군"],
+  제주: ["제주시", "서귀포시"]
+};
+
 const PAGE_SIZE = 10;
 
 function BenefitsScreen({ back }) {
@@ -18,7 +37,7 @@ function BenefitsScreen({ back }) {
     const savedTab = localStorage.getItem("echo-health-benefits-tab");
     return savedTab === "mileage" ? "mileage" : "local";
   });
-  const [query, setQuery] = useState("건강");
+  const [query, setQuery] = useState("");
   const [selectedRegion, setSelectedRegion] = useState(user?.region || "");
   const [benefits, setBenefits] = useState([]);
   const [status, setStatus] = useState("idle");
@@ -26,16 +45,10 @@ function BenefitsScreen({ back }) {
   const [mileageData, setMileageData] = useState({ total: 0, logs: [] });
   const [selectedDistrict, setSelectedDistrict] = useState(user?.district || "");
   const [sortOrder, setSortOrder] = useState("latest");
+  const [expandedTargets, setExpandedTargets] = useState({});
   const [page, setPage] = useState(1);
 
   const locationLabel = selectedDistrict || selectedRegion || "전국";
-  const personalizedQuery = (baseQuery) => {
-    const terms = [baseQuery.trim() || "건강"];
-    if ((risks?.hypertension ?? 0) >= 0.35) terms.push("고혈압 혈압");
-    if ((risks?.diabetes ?? 0) >= 0.35) terms.push("당뇨 혈당");
-    if ((risks?.obesity ?? 0) === 1) terms.push("비만 체중 운동");
-    return [...new Set(terms.join(" ").split(/\s+/).filter(Boolean))].join(" ");
-  };
 
   const refreshMileage = () => {
     setMileageData(loadMileage());
@@ -45,10 +58,23 @@ function BenefitsScreen({ back }) {
     setStatus("loading");
     setMessage("");
     setPage(1);
+    setExpandedTargets({});
+    const riskTags = [];
+    if ((risks?.hypertension ?? 0) >= 0.35) riskTags.push("hypertension");
+    if ((risks?.diabetes ?? 0) >= 0.35) riskTags.push("diabetes");
+    if ((risks?.obesity ?? 0) === 1) riskTags.push("obesity");
+    if (String(user?.smoking || "").includes("흡연")) riskTags.push("smoking");
+
     const result = await searchBenefits({
-      query: personalizedQuery(nextQuery),
-      region: nextDistrict || nextRegion,
-      perPage: 1000
+      query: nextQuery.trim(),
+      region: nextRegion,
+      subRegion: nextDistrict,
+      age: user?.age ?? "",
+      gender: user?.gender ?? "",
+      smoking: user?.smoking ?? "",
+      risks: riskTags,
+      sort: "latest",
+      perPage: 100
     });
 
     if (!result) {
@@ -58,7 +84,7 @@ function BenefitsScreen({ back }) {
       return;
     }
 
-    setBenefits(result.benefits || []);
+    setBenefits(result.items || result.benefits || []);
     setStatus(result.status === "fallback" ? "fallback" : "success");
     setMessage(result.status === "fallback" ? "정부24 연결 실패로 임시 데이터를 표시합니다." : "");
   };
@@ -84,27 +110,28 @@ function BenefitsScreen({ back }) {
   }, []);
 
   useEffect(() => {
-    if (activeSubTab === "local") loadBenefits(query, selectedRegion, selectedDistrict);
-  }, [activeSubTab]);
+    if (activeSubTab === "local" && user) loadBenefits(query, selectedRegion, selectedDistrict);
+  }, [activeSubTab, user?.age]);
 
   const reversedLogs = useMemo(() => [...(mileageData.logs || [])].reverse(), [mileageData.logs]);
   const sortedBenefits = useMemo(() => {
-    const getDeadlineRank = (benefit) => {
-      const text = benefit.applicationDeadline || "";
-      if (text.includes("상시")) return Number.MAX_SAFE_INTEGER;
-      const match = text.match(/20\d{2}[.\-/년\s]*(\d{1,2})?[.\-/월\s]*(\d{1,2})?/);
-      if (!match) return Number.MAX_SAFE_INTEGER - 1;
-      const year = Number(match[0].match(/20\d{2}/)?.[0]);
-      const month = Number(match[1] || 12);
-      const day = Number(match[2] || 31);
-      return new Date(year, month - 1, day).getTime();
+    const dateRank = (value = "") => {
+      const digits = String(value).replace(/\D/g, "").slice(0, 14);
+      return digits ? Number(digits.padEnd(14, "0")) : 0;
+    };
+    const relevanceRank = (benefit) => {
+      const words = query.trim().split(/\s+/).filter(Boolean);
+      const text = [benefit.title, benefit.summary, benefit.target, benefit.provider, benefit.region, ...(benefit.tags || [])].join(" ");
+      if (words.length === 0) return 0;
+      return words.reduce((score, word) => score + (text.includes(word) ? 1 : 0) + (String(benefit.title || "").includes(word) ? 2 : 0), 0);
     };
 
+    if (sortOrder === "latest") return benefits;
     return [...benefits].sort((a, b) => {
-      if (sortOrder === "deadline") return getDeadlineRank(a) - getDeadlineRank(b);
-      return String(b.id || b.title || "").localeCompare(String(a.id || a.title || ""));
+      if (sortOrder === "relevance") return relevanceRank(b) - relevanceRank(a) || dateRank(b.updatedAt) - dateRank(a.updatedAt);
+      return dateRank(b.updatedAt) - dateRank(a.updatedAt) || String(b.id || b.title || "").localeCompare(String(a.id || a.title || ""));
     });
-  }, [benefits, sortOrder]);
+  }, [benefits, query, sortOrder]);
   const totalPages = Math.max(1, Math.ceil(sortedBenefits.length / PAGE_SIZE));
   const pagedBenefits = sortedBenefits.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
@@ -243,7 +270,7 @@ function BenefitsScreen({ back }) {
           <div style={{ padding: "20px 16px 16px" }}>
             <h2 style={{ fontWeight: 700, fontSize: 18, margin: "0 0 2px", color: "#1F2937" }}>정부 건강 혜택 찾기</h2>
             <p style={{ fontSize: 12, color: "#6B7280", margin: "0 0 14px" }}>
-              정부24 공공서비스 목록에서 {locationLabel} 기준 혜택을 검색합니다.
+              연령대에 맞는 정부 건강 혜택을 {locationLabel} 기준으로 검색합니다.
             </p>
 
             <form onSubmit={submitSearch} style={{ display: "grid", gap: 8, marginBottom: 12 }}>
@@ -266,22 +293,28 @@ function BenefitsScreen({ back }) {
                   <option key={region} value={region}>{region}</option>
                 ))}
               </select>
-              <input
-                value={selectedDistrict}
-                onChange={(event) => setSelectedDistrict(event.target.value)}
-                placeholder="시군구"
-                style={{
-                  border: "1px solid #E5E7EB",
-                  borderRadius: 10,
-                  padding: "12px 14px",
-                  fontSize: 14,
-                  outline: "none"
-                }}
-              />
+              {selectedRegion && selectedRegion !== "국가기관" && (
+                <select
+                  value={selectedDistrict}
+                  onChange={(event) => setSelectedDistrict(event.target.value)}
+                  style={{
+                    border: "1px solid #E5E7EB",
+                    borderRadius: 10,
+                    padding: "12px 14px",
+                    fontSize: 14,
+                    background: "#fff"
+                  }}
+                >
+                  <option value="">전체 시군구</option>
+                  {(DISTRICTS[selectedRegion] || []).map((district) => (
+                    <option key={district} value={district}>{district}</option>
+                  ))}
+                </select>
+              )}
               <input
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
-                placeholder="예: 금연, 건강검진, 운동"
+                placeholder="키워드 검색"
                 style={{
                   border: "1px solid #E5E7EB",
                   borderRadius: 10,
@@ -294,22 +327,6 @@ function BenefitsScreen({ back }) {
                 {status === "loading" ? "검색 중..." : "혜택 검색"}
               </button>
             </form>
-
-            <div style={{ display: "flex", gap: 8, overflowX: "auto", marginBottom: 14 }}>
-              {QUICK_KEYWORDS.map((keyword) => (
-                <button
-                  key={keyword}
-                  type="button"
-                  onClick={() => {
-                    setQuery(keyword);
-                    loadBenefits(keyword, selectedRegion, selectedDistrict);
-                  }}
-                  style={S.chip(query === keyword)}
-                >
-                  {keyword}
-                </button>
-              ))}
-            </div>
 
             {message && (
               <div style={{ background: "#FEF3C7", color: "#92400E", borderRadius: 10, padding: "10px 12px", fontSize: 12, marginBottom: 12 }}>
@@ -332,7 +349,7 @@ function BenefitsScreen({ back }) {
                     style={{ border: "1px solid #E5E7EB", borderRadius: 8, padding: "8px 10px", fontSize: 12, background: "#fff" }}
                   >
                     <option value="latest">최신순</option>
-                    <option value="deadline">마감기간 순</option>
+                    <option value="relevance">관련도순</option>
                   </select>
                 </div>
                 {pagedBenefits.map((benefit) => (
@@ -345,13 +362,36 @@ function BenefitsScreen({ back }) {
                     <p style={{ fontSize: 13, color: "#4B5563", margin: "0 0 8px", lineHeight: 1.45 }}>
                       {benefit.summary || benefit.supportContent || "요약 정보가 제공되지 않았습니다."}
                     </p>
-                    {benefit.target && (
-                      <p style={{ fontSize: 12, color: "#6B7280", margin: "0 0 6px", lineHeight: 1.45 }}>
-                        지원대상: {benefit.target}
+                    {(benefit.matchReasons || []).length > 0 && (
+                      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", margin: "0 0 8px" }}>
+                        {(benefit.matchReasons || []).slice(0, 3).map((reason) => (
+                          <span key={reason} style={{ ...S.tag(), background: "#ECFDF5", color: "#047857" }}>{reason}</span>
+                        ))}
+                      </div>
+                    )}
+                    {(benefit.conditionWarnings || []).length > 0 && (
+                      <p style={{ fontSize: 11, color: "#B45309", margin: "0 0 8px", lineHeight: 1.4 }}>
+                        {(benefit.conditionWarnings || []).join(" · ")}
                       </p>
                     )}
+                    {benefit.target && (
+                      <div style={{ margin: "0 0 6px" }}>
+                        <button
+                          type="button"
+                          onClick={() => setExpandedTargets((prev) => ({ ...prev, [benefit.id || benefit.title]: !prev[benefit.id || benefit.title] }))}
+                          style={{ border: "none", background: "none", padding: 0, color: "#2563EB", fontSize: 12, fontWeight: 700, cursor: "pointer" }}
+                        >
+                          지원대상 {expandedTargets[benefit.id || benefit.title] ? "접기" : "펼치기"}
+                        </button>
+                        {expandedTargets[benefit.id || benefit.title] && (
+                          <p style={{ fontSize: 12, color: "#6B7280", margin: "6px 0 0", lineHeight: 1.45 }}>
+                            {benefit.target}
+                          </p>
+                        )}
+                      </div>
+                    )}
                     <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center", marginTop: 10 }}>
-                      <span style={{ fontSize: 11, color: "#9CA3AF" }}>{benefit.applicationDeadline}</span>
+                      <span style={{ fontSize: 11, color: "#9CA3AF" }}>{benefit.deadline || benefit.applicationDeadline}</span>
                       {benefit.sourceUrl ? (
                         <a href={benefit.sourceUrl} target="_blank" rel="noreferrer" style={{ fontSize: 12, color: "#2563EB", fontWeight: 700, textDecoration: "none" }}>
                           자세히 보기
@@ -362,10 +402,50 @@ function BenefitsScreen({ back }) {
                     </div>
                   </div>
                 ))}
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 14 }}>
-                  <button type="button" onClick={() => movePage(page - 1)} disabled={page === 1} style={{ ...S.btn("outline"), width: "auto", padding: "10px 14px", opacity: page === 1 ? 0.45 : 1 }}>이전</button>
-                  <span style={{ fontSize: 12, color: "#6B7280" }}>{page} / {totalPages}</span>
-                  <button type="button" onClick={() => movePage(page + 1)} disabled={page === totalPages} style={{ ...S.btn("outline"), width: "auto", padding: "10px 14px", opacity: page === totalPages ? 0.45 : 1 }}>다음</button>
+                <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 10, marginTop: 14 }}>
+                  <button
+                    type="button"
+                    onClick={() => movePage(page - 1)}
+                    disabled={page === 1}
+                    aria-label="이전 페이지"
+                    style={{
+                      width: 34,
+                      height: 34,
+                      borderRadius: 17,
+                      border: "1px solid #E5E7EB",
+                      background: "#fff",
+                      color: "#2563EB",
+                      fontSize: 20,
+                      lineHeight: 1,
+                      cursor: page === 1 ? "default" : "pointer",
+                      opacity: page === 1 ? 0.35 : 1
+                    }}
+                  >
+                    ‹
+                  </button>
+                  <span style={{ minWidth: 48, textAlign: "center", fontSize: 12, color: "#6B7280", fontWeight: 700 }}>
+                    {page} / {totalPages}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => movePage(page + 1)}
+                    disabled={page === totalPages}
+                    aria-label="다음 페이지"
+                    style={{
+                      width: 34,
+                      height: 34,
+                      borderRadius: 17,
+                      border: "1px solid #E5E7EB",
+                      background: "#fff",
+                      color: "#2563EB",
+                      fontSize: 20,
+                      lineHeight: 1,
+                      cursor: page === totalPages ? "default" : "pointer",
+                      opacity: page === totalPages ? 0.35 : 1
+                    }}
+                  >
+                    ›
+                  </button>
                 </div>
               </>
             ) : (

@@ -67,6 +67,14 @@ function AppContent() {
     setScreen(prevScreen);
   };
 
+  const goHome = () => {
+    hideLoading();
+    setShowCoach(false);
+    setTab("home");
+    setScreenHistory(["home"]);
+    setScreen("home");
+  };
+
   const closeCoach = () => {
     setCoachStartY(0);
     setCoachClosing(true);
@@ -225,7 +233,7 @@ function AppContent() {
         case "reanalyze": return <ReanalyzeScreen setScreen={navigateTo} back={goBack} />;
         case "newresult": return <NewResultScreen setScreen={navigateTo} back={goBack} />;
         case "exercise": return <ExerciseScreen back={goBack} />;
-        case "benefits": return <BenefitsScreen back={goBack} />;
+        case "benefits": return <BenefitsScreen back={goHome} />;
         case "mypage": return <MyPageScreen setScreen={navigateTo} back={goBack} />;
         case "datasource": return <DataSourceScreen setScreen={navigateTo} back={goBack} />;
         case "coach": return <CoachScreen setScreen={(target) => { if(target === false) goBack(); else navigateTo(target); }} back={goBack} />;

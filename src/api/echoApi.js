@@ -116,11 +116,18 @@ export async function sendCoachMessage(messages, userContext) {
   }
 }
 
-export async function searchBenefits({ query = "건강", region = "", page = 1, perPage = 100 } = {}) {
+export async function searchBenefits({ query = "", keyword = "", region = "", subRegion = "", age = "", gender = "", smoking = "", risks = [], sort = "latest", page = 1, perPage = 100 } = {}) {
   try {
     const params = new URLSearchParams({
       query,
+      keyword,
       region,
+      subRegion,
+      age: String(age || ""),
+      gender,
+      smoking,
+      risks: Array.isArray(risks) ? risks.join(",") : String(risks || ""),
+      sort,
       page: String(page),
       perPage: String(perPage)
     });
