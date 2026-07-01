@@ -36,6 +36,9 @@ export function normalizePredictedProfile(raw, userProfile) {
 
   const diabetesRaw = raw.diabetes_prob !== undefined ? raw.diabetes_prob : raw.diabetes;
   const hyperRaw    = raw.hypertension_prob !== undefined ? raw.hypertension_prob : raw.hypertension;
+  const strokeRaw   = raw.stroke_prob !== undefined ? raw.stroke_prob : raw.stroke;
+  const heartRaw    = raw.heart_disease_prob !== undefined ? raw.heart_disease_prob : raw.heart_disease;
+  const cancerRaw   = raw.cancer_prob !== undefined ? raw.cancer_prob : raw.cancer;
   const obesityVal  = raw.obesity_status !== undefined ? raw.obesity_status : raw.obesity;
   const scoreVal    = raw.vitality_score !== undefined ? raw.vitality_score : raw.healthScore;
 
@@ -76,8 +79,16 @@ export function normalizePredictedProfile(raw, userProfile) {
   return {
     diabetes: toDec(diabetesRaw),
     hypertension: toDec(hyperRaw),
+    stroke: toDec(strokeRaw),
+    heart_disease: toDec(heartRaw),
+    cancer: toDec(cancerRaw),
     metabolic: metabolicVal,
     obesity: obesityValBinary,
+    weight_management: raw.weight_management ?? null,
+    risks: raw.risks ?? null,
+    input_mode: raw.input_mode ?? null,
+    feature_set_used: raw.feature_set_used ?? null,
+    cardiovascular_notice: raw.cardiovascular_notice ?? raw.risks?.heart_disease?.notice ?? null,
     bmi: raw.bmi ?? null,
     vitality_score: scoreVal ?? null,
     healthScore:   scoreVal ?? null,
@@ -454,7 +465,7 @@ export function HealthProvider({ children }) {
 
   const navigateWithLoading = (setScreen, target, delay = 800, message = "로딩 중") => {
     setLoadingMessage(message);
-    setScreen("loading");
+    setIsLoading(true);
     setTimeout(() => {
       setScreen(target);
       hideLoading();

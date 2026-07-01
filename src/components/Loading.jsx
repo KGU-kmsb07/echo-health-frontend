@@ -1,11 +1,18 @@
 function Loading({ message = "로딩 중..." }) {
   return (
     <div style={{
-      position: "fixed", inset: 0,
-      background: "rgba(255,255,255,0.85)",
+      position: "fixed",
+      top: 0,
+      right: 0,
+      bottom: 0,
+      left: 0,
+      width: "100vw",
+      height: "100dvh",
+      background: "#fff",
       display: "flex", flexDirection: "column",
       alignItems: "center", justifyContent: "center",
-      zIndex: 400
+      zIndex: 9999,
+      pointerEvents: "auto"
     }}>
       {/* 스피너 */}
       <div style={{

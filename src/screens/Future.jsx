@@ -8,14 +8,20 @@ function riskLevel(value) {
   return                  { label: "정상",   color: "#16A34A", dot: "🟢" };
 }
 
+function toPercent(value) {
+  if (value === null || value === undefined) return null;
+  const number = Number(value);
+  if (Number.isNaN(number)) return null;
+  return number <= 1 ? number * 100 : number;
+}
+
 function calcFutureRisk(risks, user) {
   if (!user || user.age === null || user.age === undefined) return { diabetes: null, hypertension: null, metabolic: null, obesity: null };
   const factor = 1 + (0.05 * (1 + (user.age - 20) / 100));
   
-  // risks에 들어있는 값들이 소수(0.0~1.0) 또는 obesity의 경우 0/1 이진값이므로 백분율로 환산하여 계산
-  const dVal = risks?.diabetes !== null && risks?.diabetes !== undefined ? risks.diabetes * 100 : null;
-  const hVal = risks?.hypertension !== null && risks?.hypertension !== undefined ? risks.hypertension * 100 : null;
-  const mVal = risks?.metabolic !== null && risks?.metabolic !== undefined ? risks.metabolic * 100 : null;
+  const dVal = toPercent(risks?.diabetes);
+  const hVal = toPercent(risks?.hypertension);
+  const mVal = toPercent(risks?.metabolic);
   
   // obesity: 1이면 75%, 0이면 10%로 가상의 백분율 환산
   let oVal = null;
@@ -39,10 +45,11 @@ function FutureScreen({ setScreen, back }) {
   }
 
   const future = calcFutureRisk(risks, user);
+  const futureYear = new Date().getFullYear() + 10;
   
-  const nowDiabetes = risks?.diabetes !== null && risks?.diabetes !== undefined ? Math.round(risks.diabetes * 100) : null;
-  const nowHypertension = risks?.hypertension !== null && risks?.hypertension !== undefined ? Math.round(risks.hypertension * 100) : null;
-  const nowMetabolic = risks?.metabolic !== null && risks?.metabolic !== undefined ? Math.round(risks.metabolic * 100) : null;
+  const nowDiabetes = toPercent(risks?.diabetes) !== null ? Math.round(toPercent(risks?.diabetes)) : null;
+  const nowHypertension = toPercent(risks?.hypertension) !== null ? Math.round(toPercent(risks?.hypertension)) : null;
+  const nowMetabolic = toPercent(risks?.metabolic) !== null ? Math.round(toPercent(risks?.metabolic)) : null;
   const nowObesity = risks?.obesity !== null && risks?.obesity !== undefined ? (risks.obesity === 1 ? 75 : 10) : null;
 
   const items = [
@@ -54,15 +61,16 @@ function FutureScreen({ setScreen, back }) {
 
   return (
     <div style={S.screen}>
-      <div style={{ ...S.topBar, padding: "16px 20px", display: "flex", alignItems: "center", gap: 12, flexShrink: 0, borderBottom: "1px solid #F3F4F6" }}>
-        <button onClick={back} style={{ background: "none", border: "none", fontSize: 20, cursor: "pointer" }}>←</button>
-        <span style={{ fontWeight: 700, fontSize: 16 }}>10년 후의 나</span>
+      <div style={S.headerBar}>
+        <button onClick={back} style={S.backButton}>←</button>
+        <span style={S.headerTitle}>10년 후의 나</span>
+        <span style={S.headerSpacer} />
       </div>
       <div style={{ ...S.scrollArea, paddingTop: 57 }}>
         <div style={{ padding: 16 }}>
           <p style={{ fontSize: 12, color: "#6B7280", marginBottom: 12 }}>현재 생활 습관을 유지했을 때의 예측입니다</p>
           <div style={{ background: "#FEF2F2", borderRadius: 10, padding: "10px 14px", marginBottom: 16, color: "#DC2626", fontSize: 12 }}>
-            ⚠️ 지금 습관을 유지하면 2034년, 당신은 이렇게 변합니다
+            ⚠️ 지금 습관을 유지하면 {futureYear}년, 당신은 이렇게 변합니다
           </div>
           <div style={{ ...S.card }}>
             <div style={{ display: "flex", gap: 12, justifyContent: "center", marginBottom: 16 }}>
@@ -84,7 +92,7 @@ function FutureScreen({ setScreen, back }) {
                 <div>→<br />10년 후</div>
               </div>
               <div style={{ textAlign: "center" }}>
-                <p style={{ fontSize: 11, color: "#9CA3AF", marginBottom: 6 }}>2034년 ({user.age !== null && user.age !== undefined ? `${user.age + 10}세` : "연결 안됨."})</p>
+                <p style={{ fontSize: 11, color: "#9CA3AF", marginBottom: 6 }}>{futureYear}년 ({user.age !== null && user.age !== undefined ? `${user.age + 10}세` : "연결 안됨."})</p>
                 <div style={{ width: 80, height: 100, background: "#FEE2E2", borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 4px" }}>
                   <svg width="60" height="80" viewBox="0 0 60 80" fill="none" xmlns="http://www.w3.org/2000/svg">
                     <circle cx="30" cy="14" r="10" fill="#FCA5A5"/>

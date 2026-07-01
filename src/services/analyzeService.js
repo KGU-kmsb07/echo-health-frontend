@@ -1,24 +1,34 @@
-import { analyzeHealth } from '../api/echoApi';
+import { analyzeHealth } from "../api/echoApi";
 
-export async function runAnalysis(userProfile) {
+function toSexCode(gender) {
+  return gender === "남성" || gender === "남자" || gender === "male" || gender === 1 ? 1 : 2;
+}
+
+function toSmokingCode(smoking) {
+  return smoking === "현재 흡연" || smoking === "흡연" || smoking === 1 ? 1 : 0;
+}
+
+function toAerobicCode(exercise) {
+  return ["안함", "거의 안 함", "0회", "0일", "0"].includes(exercise) ? 0 : 1;
+}
+
+export function buildAnalysisPayload(userProfile) {
+  const healthCheckup = userProfile.healthCheckup || null;
   const payload = {
-    age: userProfile.age,
-    sex: userProfile.gender === "남성" ? 1 : 2,
+    input_mode: healthCheckup ? "checkup" : "simple",
+    age: Number(userProfile.age),
+    sex: toSexCode(userProfile.gender),
     height_cm: Number(userProfile.height),
     weight_kg: Number(userProfile.weight),
     waist_cm: Number(userProfile.waist) || 80,
-    systolic_bp: userProfile.bloodPressure?.systolic || 120,
-    diastolic_bp: userProfile.bloodPressure?.diastolic || 80,
-    fasting_glucose: 90,
-    hba1c: 5.2,
-    total_cholesterol: 180,
-    hdl_cholesterol: 50,
-    triglyceride: 120,
-    ldl_direct: 110,
-    current_smoking: userProfile.smoking !== "비흡연" ? 1 : 0,
-    aerobic_activity: ["거의 안 함", "0일"].includes(userProfile.exercise) ? 0 : 1
+    current_smoking: toSmokingCode(userProfile.smoking),
+    aerobic_activity: toAerobicCode(userProfile.exercise),
+    ...(healthCheckup || {})
   };
 
-  const result = await analyzeHealth(payload);
-  return result; // { diabetes, hypertension, metabolic, obesity, bmi, healthScore, healthAge }
+  return payload;
+}
+
+export async function runAnalysis(userProfile) {
+  return await analyzeHealth(buildAnalysisPayload(userProfile));
 }

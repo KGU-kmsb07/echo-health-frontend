@@ -2,7 +2,6 @@ import React, { useState, useEffect } from "react";
 import S from "./styles/shared";
 import { NavBar, AIButton } from "./components/Layout";
 import SplashScreen from "./screens/Splash";
-import LoginScreen from "./screens/Login";
 import PrivacyConsentScreen, { hasPrivacyConsent } from "./screens/PrivacyConsent";
 import OnboardStep1 from "./screens/Onboarding/Onboard1";
 import OnboardStep2 from "./screens/Onboarding/Onboard2";
@@ -33,9 +32,11 @@ function AppContent() {
   const [screenHistory, setScreenHistory] = useState(hasOnboarded ? ["home"] : ["splash"]);
   const [tab, setTab] = useState("home");
   const [showCoach, setShowCoach] = useState(false);
+  const [coachStartY, setCoachStartY] = useState(0);
+  const [coachClosing, setCoachClosing] = useState(false);
   const [tempOnboardData, setTempOnboardData] = useState({});
 
-  const nonNavScreens = ["splash", "login", "privacy", "onboard1", "onboard2", "onboard3", "onboard4"];
+  const nonNavScreens = ["splash", "privacy", "onboard1", "onboard2", "onboard3", "onboard4"];
   const showNav = hasOnboarded && !nonNavScreens.includes(screen);
 
   useEffect(() => {
@@ -47,13 +48,42 @@ function AppContent() {
     setScreen(nextScreen);
   };
 
+  const goAnalyze = () => {
+    hideLoading();
+    setShowCoach(false);
+    setTab("analyze");
+    setScreenHistory(["home", "analyze"]);
+    setScreen("analyze");
+  };
+
   const goBack = () => {
+    hideLoading();
+    setShowCoach(false);
     if (screenHistory.length <= 1) return;
     const nextHistory = [...screenHistory];
     nextHistory.pop();
     const prevScreen = nextHistory[nextHistory.length - 1];
     setScreenHistory(nextHistory);
     setScreen(prevScreen);
+  };
+
+  const closeCoach = () => {
+    setCoachStartY(0);
+    setCoachClosing(true);
+    setTimeout(() => {
+      setShowCoach(false);
+      setCoachClosing(false);
+    }, 220);
+  };
+
+  const handleCoachDragStart = (clientY) => setCoachStartY(clientY);
+
+  const handleCoachDragEnd = (clientY) => {
+    if (coachStartY > 0 && clientY - coachStartY > 80) {
+      closeCoach();
+      return;
+    }
+    setCoachStartY(0);
   };
 
   const handleOnboard4Complete = async (finalData) => {
@@ -179,8 +209,7 @@ function AppContent() {
   const renderScreen = () => {
     const getScreenComponent = () => {
       switch (screen) {
-        case "splash": return <SplashScreen next={() => navigateTo("login")} />;
-        case "login": return <LoginScreen next={() => navigateTo(hasPrivacyConsent() ? "onboard1" : "privacy")} />;
+        case "splash": return <SplashScreen next={() => navigateTo(hasPrivacyConsent() ? "onboard1" : "privacy")} />;
         case "privacy": return <PrivacyConsentScreen next={() => navigateTo("onboard1")} back={goBack} />;
         case "onboard1": return <OnboardStep1 next={(data) => { setTempOnboardData(prev => ({ ...prev, ...data })); navigateTo("onboard2"); }} back={goBack} />;
         case "onboard2": return <OnboardStep2 next={(data) => { setTempOnboardData(prev => ({ ...prev, ...data })); navigateTo("onboard3"); }} back={goBack} />;
@@ -189,9 +218,9 @@ function AppContent() {
         case "loading": return <LoadingScreen message={loadingMessage} />;
         case "home": return <HomeScreen setScreen={navigateTo} setTab={setTab} />;
         case "analyze": return <AnalyzeScreen setScreen={navigateTo} back={goBack} />;
-        case "future": return <FutureScreen setScreen={navigateTo} back={goBack} />;
+        case "future": return <FutureScreen setScreen={navigateTo} back={goAnalyze} />;
         case "simulate": return <SimulateScreen setScreen={navigateTo} back={goBack} />;
-        case "improved": return <ImprovedScreen setScreen={navigateTo} setTab={setTab} back={goBack} />;
+        case "improved": return <ImprovedScreen setScreen={navigateTo} setTab={setTab} back={goAnalyze} />;
         case "plan": return <PlanScreen setScreen={navigateTo} back={goBack} />;
         case "reanalyze": return <ReanalyzeScreen setScreen={navigateTo} back={goBack} />;
         case "newresult": return <NewResultScreen setScreen={navigateTo} back={goBack} />;
@@ -223,13 +252,19 @@ function AppContent() {
 
       {/* AI 코치 팝업 */}
       {showCoach && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.3)", zIndex: 150 }} onClick={() => setShowCoach(false)}>
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.3)", zIndex: 400 }} onClick={closeCoach}>
           <div 
-            className="bottom-sheet"
-            onClick={e => e.stopPropagation()} 
-            style={{ position: "fixed", bottom: 56, left: 0, right: 0, margin: "0 auto", width: "100%", maxWidth: 390, background: "#fff", borderRadius: "20px 20px 0 0", height: "80vh", overflow: "hidden", display: "flex", flexDirection: "column", zIndex: 200 }}
+            className={`bottom-sheet${coachClosing ? " closing" : ""}`}
+            onClick={e => e.stopPropagation()}
+            onTouchStart={e => handleCoachDragStart(e.touches[0].clientY)}
+            onTouchEnd={e => handleCoachDragEnd(e.changedTouches[0].clientY)}
+            onTouchCancel={() => setCoachStartY(0)}
+            onMouseDown={e => handleCoachDragStart(e.clientY)}
+            onMouseUp={e => handleCoachDragEnd(e.clientY)}
+            onDragStart={e => e.preventDefault()}
+            style={{ position: "fixed", bottom: 0, left: 0, right: 0, margin: "0 auto", width: "100%", maxWidth: 390, background: "#fff", borderRadius: "20px 20px 0 0", height: "calc(80vh + 56px)", maxHeight: "calc(100vh - 56px)", paddingBottom: 56, boxSizing: "border-box", overflow: "hidden", display: "flex", flexDirection: "column", zIndex: 500 }}
           >
-            <CoachScreen setScreen={() => setShowCoach(false)} />
+            <CoachScreen setScreen={closeCoach} />
           </div>
         </div>
       )}

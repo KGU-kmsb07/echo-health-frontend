@@ -9,11 +9,11 @@ const restrictInteger = (val, max = 3) => {
 };
 
 const normalizeExerciseOption = (value) => {
-  if (value === "거의 안 함") return "0일";
-  if (value === "주 1~2회" || value === "주 1-2회") return "1~2일";
-  if (value === "주 3~4회" || value === "주 3-4회") return "3~4일";
-  if (value === "주 5회 이상") return "5일 이상";
-  return value || "0일";
+  if (["거의 안 함", "0일", "0회", "0"].includes(value)) return "안함";
+  if (["1~2일", "주 1-2회"].includes(value)) return "주 1~2회";
+  if (["3~4일", "주 3-4회"].includes(value)) return "주 3~4회";
+  if (["5일 이상", "주 5회 이상"].includes(value)) return "주 5~6회";
+  return value || "안함";
 };
 
 function ReanalyzeScreen({ setScreen, back }) {
@@ -123,7 +123,7 @@ function ReanalyzeScreen({ setScreen, back }) {
             </div>
             <p style={{ fontSize: 13, margin: "0 0 6px" }}>운동 빈도</p>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
-              {["0일", "1~2일", "3~4일", "5일 이상", "매일"].map(e => <button key={e} style={S.chip(exercise === e)} onClick={() => setExercise(e)}>{e}</button>)}
+              {["안함", "주 1~2회", "주 3~4회", "주 5~6회", "매일"].map(e => <button key={e} style={S.chip(exercise === e)} onClick={() => setExercise(e)}>{e}</button>)}
             </div>
 
           </div>

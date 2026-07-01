@@ -1,5 +1,6 @@
-import { useState } from "react";
+﻿import { useState } from "react";
 import S from "../styles/shared";
+import { privacyConsentDocumentUrl, saveConsent } from "../api/echoApi";
 
 const CONSENT_KEY = "echo-health-privacy-consent";
 
@@ -14,12 +15,26 @@ export function savePrivacyConsent(value) {
 function PrivacyConsentScreen({ next, back }) {
   const [required, setRequired] = useState(hasPrivacyConsent());
   const [optional, setOptional] = useState(localStorage.getItem("echo-health-marketing-consent") === "true");
+  const checkboxStyle = {
+    width: 22,
+    height: 22,
+    minWidth: 22,
+    flex: "0 0 22px",
+    margin: "1px 0 0",
+    accentColor: "#2563EB"
+  };
 
-  const handleNext = () => {
+  const handleNext = async () => {
     if (!required) return;
     savePrivacyConsent(true);
     localStorage.setItem("echo-health-marketing-consent", optional ? "true" : "false");
     localStorage.setItem("echo-health-notif-enabled", optional ? "true" : "false");
+    await saveConsent({
+      requiredConsent: true,
+      optionalConsent: optional,
+      consentVersion: "2024",
+      consentedAt: new Date().toISOString()
+    });
     next();
   };
 
@@ -39,33 +54,39 @@ function PrivacyConsentScreen({ next, back }) {
       </p>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 10, flex: 1 }}>
-        <label style={{ ...S.card, display: "flex", alignItems: "flex-start", gap: 10, cursor: "pointer", marginBottom: 0 }}>
+        <label style={{ ...S.card, display: "flex", alignItems: "flex-start", gap: 12, cursor: "pointer", marginBottom: 0 }}>
           <input
             type="checkbox"
             checked={required}
             onChange={e => setRequired(e.target.checked)}
-            style={{ width: 18, height: 18, marginTop: 2, accentColor: "#2563EB" }}
+            style={checkboxStyle}
           />
-          <span>
+          <span style={{ flex: 1, minWidth: 0 }}>
             <strong style={{ display: "block", fontSize: 14, color: "#111827", marginBottom: 4 }}>[필수] 건강정보 수집 및 이용 동의</strong>
             <span style={{ display: "block", fontSize: 12, color: "#6B7280", lineHeight: 1.5 }}>
               이름, 나이, 성별, 신체정보, 생활습관, 혈압 정보를 앱 내 분석과 개인화 추천에 사용합니다.
             </span>
+            <a href={privacyConsentDocumentUrl} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()} style={{ display: "inline-block", marginTop: 8, fontSize: 12, color: "#2563EB", fontWeight: 700, textDecoration: "none" }}>
+              개인정보 처리 동의 전문 보기
+            </a>
           </span>
         </label>
 
-        <label style={{ ...S.card, display: "flex", alignItems: "flex-start", gap: 10, cursor: "pointer", marginBottom: 0 }}>
+        <label style={{ ...S.card, display: "flex", alignItems: "flex-start", gap: 12, cursor: "pointer", marginBottom: 0 }}>
           <input
             type="checkbox"
             checked={optional}
             onChange={e => setOptional(e.target.checked)}
-            style={{ width: 18, height: 18, marginTop: 2, accentColor: "#2563EB" }}
+            style={checkboxStyle}
           />
-          <span>
+          <span style={{ flex: 1, minWidth: 0 }}>
             <strong style={{ display: "block", fontSize: 14, color: "#111827", marginBottom: 4 }}>[선택] 건강 혜택 알림 동의</strong>
             <span style={{ display: "block", fontSize: 12, color: "#6B7280", lineHeight: 1.5 }}>
               건강 혜택 안내와 실천 리마인더 알림을 받을 수 있습니다.
             </span>
+            <a href={privacyConsentDocumentUrl} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()} style={{ display: "inline-block", marginTop: 8, fontSize: 12, color: "#2563EB", fontWeight: 700, textDecoration: "none" }}>
+              선택 동의 안내 보기
+            </a>
           </span>
         </label>
       </div>

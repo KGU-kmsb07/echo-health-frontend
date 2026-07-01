@@ -17,7 +17,7 @@ export function getWeeklyResult(days) {
   return "미달성";
 }
 
-function WeeklyMilestoneCard({ week, days, planStartDate, selectedDayIndex, onSelectDay }) {
+function WeeklyMilestoneCard({ days, planStartDate, selectedDayIndex, onSelectDay }) {
   const getStatusStyles = (status) => {
     switch (status) {
       case "success":
@@ -34,6 +34,13 @@ function WeeklyMilestoneCard({ week, days, planStartDate, selectedDayIndex, onSe
           border: "1px solid #EF4444",
           text: "쉬어감"
         };
+      case "in-progress":
+        return {
+          bg: "#FEF3C7",
+          color: "#92400E",
+          border: "1px solid #F59E0B",
+          text: "진행"
+        };
       case "unchecked":
       default:
         return {
@@ -47,7 +54,7 @@ function WeeklyMilestoneCard({ week, days, planStartDate, selectedDayIndex, onSe
 
   const getDayName = (idx) => {
     const daysOfWeek = ["일", "월", "화", "수", "목", "금", "토"];
-    if (!planStartDate) return daysOfWeek[(1 + idx) % 7]; // default starting from Monday (1)
+    if (!planStartDate) return daysOfWeek[(1 + idx) % 7];
     const start = new Date(planStartDate);
     const startDayOfWeek = start.getDay();
     return daysOfWeek[(startDayOfWeek + idx) % 7];
@@ -56,8 +63,7 @@ function WeeklyMilestoneCard({ week, days, planStartDate, selectedDayIndex, onSe
   return (
     <div style={{ marginBottom: 18 }}>
       <p style={{ fontSize: 12, fontWeight: 700, color: "#4B5563", margin: "0 0 10px" }}>이번 주 마일스톤</p>
-      
-      {/* 7일 가로 선형 마일스톤 UI */}
+
       <div style={{
         display: "grid",
         gridTemplateColumns: "32px 1fr 32px 1fr 32px 1fr 32px 1fr 32px 1fr 32px 1fr 32px",
@@ -72,7 +78,7 @@ function WeeklyMilestoneCard({ week, days, planStartDate, selectedDayIndex, onSe
           const isSelected = idx === selectedDayIndex;
           return (
             <React.Fragment key={idx}>
-              <div 
+              <div
                 onClick={() => onSelectDay && onSelectDay(idx)}
                 style={{
                   display: "flex",
@@ -114,7 +120,7 @@ function WeeklyMilestoneCard({ week, days, planStartDate, selectedDayIndex, onSe
                   {cfg.text}
                 </span>
               </div>
-              
+
               {idx < days.length - 1 && (
                 <div style={{
                   width: "100%",

@@ -12,8 +12,30 @@ export function NavBar({ tab, setTab, setScreen }) {
   return (
     <nav style={{ ...S.navBar, zIndex: 600 }}>
       {items.map((i) => (
-        <div key={i.id} style={S.navItem(tab === i.id)} onClick={() => { setTab(i.id); setScreen(i.id); }}>
-          <span style={{ fontSize: 18 }}>{i.icon}</span>
+        <div key={i.id} style={S.navItem(tab === i.id)} onClick={() => {
+          if (i.id === "benefits") {
+            localStorage.setItem("echo-health-benefits-tab", "local");
+            window.dispatchEvent(new Event("echo-health-benefits-local"));
+          }
+          setTab(i.id);
+          setScreen(i.id);
+        }}>
+          <span
+            style={{
+              width: 30,
+              height: 30,
+              borderRadius: "50%",
+              background: tab === i.id ? "#2563EB" : "transparent",
+              color: tab === i.id ? "#fff" : "inherit",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: 18,
+              lineHeight: 1
+            }}
+          >
+            {i.icon}
+          </span>
           <span>{i.label}</span>
         </div>
       ))}

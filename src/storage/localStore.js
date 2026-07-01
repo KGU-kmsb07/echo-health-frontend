@@ -4,6 +4,7 @@ const SIMULATION_RESULT_KEY = "@echo:simulationResult";
 const QUEST_LIST_KEY = "@echo:questData";
 const MILEAGE_KEY = "@echo:mileage";
 const WEEKLY_GOALS_KEY = "@echo:weeklyGoals";
+const EXERCISE_RECORDS_KEY = "@echo:exerciseRecords";
 
 export function saveUserProfile(data) {
   if (!data) return;
@@ -112,5 +113,22 @@ export function loadWeeklyGoals() {
   } catch (e) {
     console.error("Failed to parse weekly goals from localStorage", e);
     return null;
+  }
+}
+
+export function saveExerciseRecords(data) {
+  if (!data) return;
+  localStorage.setItem(EXERCISE_RECORDS_KEY, JSON.stringify(data));
+}
+
+export function loadExerciseRecords() {
+  const data = localStorage.getItem(EXERCISE_RECORDS_KEY);
+  if (!data) return {};
+  try {
+    const parsed = JSON.parse(data);
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch (e) {
+    console.error("Failed to parse exercise records from localStorage", e);
+    return {};
   }
 }

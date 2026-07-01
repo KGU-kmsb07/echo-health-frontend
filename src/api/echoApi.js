@@ -1,4 +1,6 @@
-const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8080";
+﻿const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8080";
+
+export const privacyConsentDocumentUrl = `${BASE_URL}/privacy/consent/document`;
 
 export async function analyzeHealth(userData) {
   try {
@@ -24,6 +26,34 @@ export async function simulateHealth(userData) {
     return await res.json();
   } catch (e) {
     console.error("simulateHealth error:", e);
+    return null;
+  }
+}
+
+export async function uploadCheckupFile(file, source = "ocr") {
+  try {
+    const res = await fetch(`${BASE_URL}/checkup/extract?source=${encodeURIComponent(source)}`, {
+      method: "POST",
+      headers: { "Content-Type": file.type || "application/octet-stream" },
+      body: file
+    });
+    return await res.json();
+  } catch (e) {
+    console.error("uploadCheckupFile error:", e);
+    return null;
+  }
+}
+
+export async function saveConsent(payload) {
+  try {
+    const res = await fetch(`${BASE_URL}/privacy/consent`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+    return await res.json();
+  } catch (e) {
+    console.error("saveConsent error:", e);
     return null;
   }
 }
@@ -78,9 +108,43 @@ export async function sendCoachMessage(messages, userContext) {
     });
     return await res.json();
   } catch (e) {
+    console.error("sendCoachMessage error:", e);
     return {
-      text: "현재 AI 코치 서비스에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요.",
+      text: "현재 AI 건강 코치 서비스에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요.",
       source: "서비스 점검 중"
     };
   }
 }
+
+export async function searchBenefits({ query = "건강", region = "", page = 1, perPage = 100 } = {}) {
+  try {
+    const params = new URLSearchParams({
+      query,
+      region,
+      page: String(page),
+      perPage: String(perPage)
+    });
+    const res = await fetch(`${BASE_URL}/api/benefits/search?${params}`);
+    return await res.json();
+  } catch (e) {
+    console.error("searchBenefits error:", e);
+    return null;
+  }
+}
+
+export async function matchBenefits(payload) {
+  try {
+    const res = await fetch(`${BASE_URL}/api/benefits/match`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+    return await res.json();
+  } catch (e) {
+    console.error("matchBenefits error:", e);
+    return null;
+  }
+}
+
+
+

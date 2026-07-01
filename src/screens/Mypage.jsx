@@ -2,6 +2,7 @@ import { useState } from 'react';
 import S from '../styles/shared';
 import { useHealth, generateDynamicNotifications } from '../context/HealthContext';
 import { hasPrivacyConsent, savePrivacyConsent } from './PrivacyConsent';
+import { privacyConsentDocumentUrl } from '../api/echoApi';
 
 function MyPageScreen({ setScreen }) {
   const { user, setNotifEnabled, setNotifications, setEditMode } = useHealth();
@@ -80,6 +81,9 @@ function MyPageScreen({ setScreen }) {
               <div>
                 <p style={{ fontSize: 14, color: "#374151", margin: "0 0 2px" }}>건강정보 수집 및 이용</p>
                 <p style={{ fontSize: 11, color: "#9CA3AF", margin: 0 }}>분석과 맞춤 플랜 생성을 위한 필수 동의</p>
+                <a href={privacyConsentDocumentUrl} target="_blank" rel="noreferrer" style={{ display: "inline-block", marginTop: 6, fontSize: 12, color: "#2563EB", fontWeight: 700, textDecoration: "none" }}>
+                  전문 보기
+                </a>
               </div>
               <button
                 onClick={() => {
@@ -96,6 +100,9 @@ function MyPageScreen({ setScreen }) {
               <div>
                 <p style={{ fontSize: 14, color: "#374151", margin: "0 0 2px" }}>건강 혜택 알림</p>
                 <p style={{ fontSize: 11, color: "#9CA3AF", margin: 0 }}>지역 혜택과 실천 리마인더 안내</p>
+                <a href={privacyConsentDocumentUrl} target="_blank" rel="noreferrer" style={{ display: "inline-block", marginTop: 6, fontSize: 12, color: "#2563EB", fontWeight: 700, textDecoration: "none" }}>
+                  전문 보기
+                </a>
               </div>
               <button
                 onClick={() => {
@@ -123,7 +130,7 @@ function MyPageScreen({ setScreen }) {
           ))}
           <div style={S.card}>
             <p style={{ fontWeight: 600, margin: "0 0 10px" }}>데이터 버전 정보</p>
-            {[["모델 버전", "Echo ML v1.0.0"], ["KNHANES 기준", "2024 공개 통계"], ["마지막 업데이트", "2026-05-20"], ["AUROC", "모델별 성능표 참조"]].map(([k, v]) => (
+            {[["모델 버전", "E.H.ML v.2.0.3"], ["KNHANES 기준", "2024년"], ["마지막 업데이트", "랜딩페이지 정보 기준"]].map(([k, v]) => (
               <div key={k} style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, fontSize: 13 }}>
                 <span style={{ color: "#6B7280" }}>{k}</span><span style={{ fontWeight: 500 }}>{v}</span>
               </div>

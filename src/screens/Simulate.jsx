@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import S from '../styles/shared';
 import { useHealth } from '../context/HealthContext';
 import { simulateHealth } from '../api/echoApi';
@@ -31,11 +31,17 @@ const riskColor = (value) => {
 };
 
 const normalizeExerciseOption = (value) => {
-  if (value === "거의 안 함") return "0일";
-  if (value === "주 1~2회" || value === "주 1-2회") return "1~2일";
-  if (value === "주 3~4회" || value === "주 3-4회") return "3~4일";
-  if (value === "주 5회 이상") return "5일 이상";
-  return value || "0일";
+  if (["거의 안 함", "0일", "0회", "0"].includes(value)) return "안함";
+  if (["1~2일", "주 1-2회"].includes(value)) return "주 1~2회";
+  if (["3~4일", "주 3-4회"].includes(value)) return "주 3~4회";
+  if (["5일 이상", "주 5회 이상"].includes(value)) return "주 5~6회";
+  return value || "안함";
+};
+
+const normalizeDrinkingOption = (value) => {
+  if (value === "월 1-3회") return "월 1~3회";
+  if (value === "주 1-2회") return "주 1~2회";
+  return value || "안함";
 };
 
 function SimulateScreen({ setScreen, back }) {
@@ -47,8 +53,17 @@ function SimulateScreen({ setScreen, back }) {
   const [steps, setSteps] = useState(wearData?.steps ?? 5000);
   const [exercise, setExercise] = useState(normalizeExerciseOption(user?.exercise));
   const [smoking, setSmoking] = useState(user?.smoking ?? "비흡연");
-  const [drinking, setDrinking] = useState(user?.drinking ?? "안함");
+  const [drinking, setDrinking] = useState(normalizeDrinkingOption(user?.drinking));
   const [showValidation, setShowValidation] = useState(false);
+
+  useEffect(() => {
+    setWeight(user?.weight ?? "");
+    setSystolic(user?.bloodPressure?.systolic ?? 120);
+    setDiastolic(user?.bloodPressure?.diastolic ?? 80);
+    setExercise(normalizeExerciseOption(user?.exercise));
+    setSmoking(user?.smoking ?? "비흡연");
+    setDrinking(normalizeDrinkingOption(user?.drinking));
+  }, [user?.weight, user?.bloodPressure?.systolic, user?.bloodPressure?.diastolic, user?.exercise, user?.smoking, user?.drinking]);
 
   const isValid =
     weight !== null && weight !== "" &&
@@ -69,35 +84,31 @@ function SimulateScreen({ setScreen, back }) {
 
     showLoading("결과를 계산하고 있어요...");
 
+    const checkup = user.healthCheckup || {};
     const payload = {
+      input_mode: user.healthCheckup ? "checkup" : "simple",
       age: user.age,
       sex: user.gender === "남성" ? 1 : 2,
-      height_cm: Number(user.height),
+      height_cm: Number(checkup.height_cm ?? user.height),
       weight_kg: Number(weight),
-      waist_cm: Number(user.waist) || 80,
+      waist_cm: Number(checkup.waist_cm ?? user.waist) || 80,
       systolic_bp: Number(systolic),
       diastolic_bp: Number(diastolic),
-      fasting_glucose: 90,
-      hba1c: 5.2,
-      total_cholesterol: 180,
-      hdl_cholesterol: 50,
-      triglyceride: 120,
-      ldl_direct: 110,
+      fasting_glucose: Number(checkup.fasting_glucose ?? 90),
+      hba1c: Number(checkup.hba1c ?? 5.2),
+      total_cholesterol: Number(checkup.total_cholesterol ?? 180),
+      hdl_cholesterol: Number(checkup.hdl_cholesterol ?? 50),
+      triglyceride: Number(checkup.triglyceride ?? 120),
+      ldl_direct: Number(checkup.ldl_direct ?? 110),
       current_smoking: smoking !== "비흡연" ? 1 : 0,
-      aerobic_activity: ["거의 안 함", "0일"].includes(exercise) ? 0 : 1
+      aerobic_activity: exercise === "안함" ? 0 : 1
     };
 
     try {
       const result = await simulateHealth(payload);
       if (result && !result.error) {
         updateSimulationResult({
-          bmi: result.bmi,
-          obesity_status: result.obesity_status,
-          hypertension_prob: result.hypertension_prob,
-          diabetes_prob: result.diabetes_prob,
-          vitality_score: result.vitality_score,
-          health_age: result.health_age,
-          healthAge: result.healthAge,
+          ...result,
           simulatedInputs: {
             weight: Number(weight),
             bloodPressure: {
@@ -222,7 +233,7 @@ function SimulateScreen({ setScreen, back }) {
         <div style={S.card}>
           <p style={{ fontWeight: 600, margin: "0 0 10px", fontSize: 14 }}>운동 빈도</p>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            {["0일", "1~2일", "3~4일", "5일 이상", "매일"].map(option => (
+            {["안함", "주 1~2회", "주 3~4회", "주 5~6회", "매일"].map(option => (
               <button 
                 key={option} 
                 type="button" 

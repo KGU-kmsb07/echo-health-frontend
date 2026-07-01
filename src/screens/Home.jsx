@@ -40,6 +40,7 @@ function HomeScreen({ setScreen, setTab }) {
   // risks는 HealthContext.setPredictedProfile에서 이미 백분율 정수(0~100)로 정규화됨
   const [showNotif, setShowNotif] = useState(false);
   const [startY, setStartY] = useState(0);
+  const [notifClosing, setNotifClosing] = useState(false);
 
   const { week: currentWeek } = getPlanProgress(planStartDate);
   const targetPlan = (plan && plan.data) ? plan.data.find(p => p.week === currentWeek) : null;
@@ -52,6 +53,20 @@ function HomeScreen({ setScreen, setTab }) {
   
   const totalTodayCount = todayTodoItems.length;
 
+  const openNotifications = () => {
+    setNotifClosing(false);
+    setShowNotif(true);
+  };
+
+  const closeNotifications = () => {
+    setStartY(0);
+    setNotifClosing(true);
+    setTimeout(() => {
+      setShowNotif(false);
+      setNotifClosing(false);
+    }, 220);
+  };
+
   const handleTouchStart = (e) => {
     setStartY(e.touches[0].clientY);
   };
@@ -60,7 +75,7 @@ function HomeScreen({ setScreen, setTab }) {
     if (startY <= 0) return;
     const endY = e.changedTouches[0].clientY;
     if (endY - startY > 80) {
-      setShowNotif(false);
+      closeNotifications();
     }
     setStartY(0);
   };
@@ -73,7 +88,7 @@ function HomeScreen({ setScreen, setTab }) {
     if (startY <= 0) return;
     const endY = e.clientY;
     if (endY - startY > 80) {
-      setShowNotif(false);
+      closeNotifications();
     }
     setStartY(0);
   };
@@ -110,7 +125,7 @@ function HomeScreen({ setScreen, setTab }) {
           </p>
         </div>
         
-        <button onClick={() => setShowNotif(true)} style={{ marginLeft: "auto", background: "none", border: "none", cursor: "pointer", fontSize: 20, position: "relative", padding: 4 }}>
+        <button onClick={openNotifications} style={{ marginLeft: "auto", background: "none", border: "none", cursor: "pointer", fontSize: 20, position: "relative", padding: 4 }}>
           🔔
           {notifications.filter(n => n.unread).length > 0 && (
             <span style={{ position: "absolute", top: -2, right: -2, width: 16, height: 16, background: "#EF4444", borderRadius: "50%", color: "#fff", fontSize: 10, display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -214,17 +229,17 @@ function HomeScreen({ setScreen, setTab }) {
       </div>
       {/* 알림 패널 */}
       {showNotif && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.3)", zIndex: 400 }} onClick={() => setShowNotif(false)}>
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.3)", zIndex: 400 }} onClick={closeNotifications}>
           <div 
-            className="bottom-sheet"
+            className={`bottom-sheet${notifClosing ? " closing" : ""}`}
             onClick={e => e.stopPropagation()} 
             onTouchStart={handleTouchStart}
             onTouchEnd={handleTouchEnd}
-            onTouchCancel={handleTouchEnd}
+            onTouchCancel={() => setStartY(0)}
             onMouseDown={handleMouseDown}
             onMouseUp={handleMouseUp}
             onDragStart={e => e.preventDefault()}
-            style={{ position: "fixed", bottom: 56, left: 0, right: 0, margin: "0 auto", width: "100%", maxWidth: 390, background: "#fff", borderRadius: "20px 20px 0 0", padding: "10px 20px 20px", zIndex: 500 }}
+            style={{ position: "fixed", bottom: 0, left: 0, right: 0, margin: "0 auto", width: "100%", maxWidth: 390, background: "#fff", borderRadius: "20px 20px 0 0", padding: "10px 20px 80px", maxHeight: "90vh", overflowY: "auto", boxSizing: "border-box", zIndex: 500 }}
           >
             {/* 드래그 핸들 zone */}
             <div 
@@ -255,7 +270,7 @@ function HomeScreen({ setScreen, setTab }) {
                       전체 삭제
                     </button>
                   )}
-                  <button onClick={() => setShowNotif(false)} style={{ background: "none", border: "none", fontSize: 18, cursor: "pointer" }}>✕</button>
+                  <button onClick={closeNotifications} style={{ background: "none", border: "none", fontSize: 18, cursor: "pointer" }}>✕</button>
                 </div>
               </div>
             </div>
@@ -270,7 +285,7 @@ function HomeScreen({ setScreen, setTab }) {
                   }
                   // 알림 클릭 시 읽음 처리 연동
                   setNotifications(prev => prev.map(item => item.id === n.id ? { ...item, unread: false } : item));
-                  setShowNotif(false);
+                  closeNotifications();
                 }}
                 style={{ display: "flex", gap: 12, padding: "12px 0", borderBottom: "1px solid #F3F4F6", alignItems: "center", cursor: "pointer" }}
               >

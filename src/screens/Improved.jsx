@@ -10,27 +10,25 @@ function riskLevel(value) {
   return                  { label: "정상",   color: "#16A34A", dot: "🟢" };
 }
 
-function calcFutureRisk(risks, user) {
-  if (!user || user.age === null || user.age === undefined) return { diabetes: null, hypertension: null, metabolic: null, obesity: null };
-  const factor = 1 + (0.05 * (1 + (user.age - 20) / 100));
+function toPercent(value) {
+  if (value === null || value === undefined) return null;
+  const number = Number(value);
+  if (Number.isNaN(number)) return null;
+  return number <= 1 ? number * 100 : number;
+}
 
-  // risks에 들어있는 값들이 소수(0.0~1.0) 또는 obesity의 경우 0/1 이진값이므로 백분율로 환산하여 계산
-  const dVal = risks?.diabetes !== null && risks?.diabetes !== undefined ? risks.diabetes * 100 : null;
-  const hVal = risks?.hypertension !== null && risks?.hypertension !== undefined ? risks.hypertension * 100 : null;
-  const mVal = risks?.metabolic !== null && risks?.metabolic !== undefined ? risks.metabolic * 100 : null;
+const DISEASE_ITEMS = [
+  { key: "hypertension", label: "고혈압" },
+  { key: "stroke", label: "뇌졸중" },
+  { key: "diabetes", label: "당뇨" },
+  { key: "heart_disease", label: "심장질환" },
+  { key: "cancer", label: "암" }
+];
 
-  // obesity: 1이면 75%, 0이면 10%로 가상의 백분율 환산
-  let oVal = null;
-  if (risks?.obesity !== null && risks?.obesity !== undefined) {
-    oVal = risks.obesity === 1 ? 75 : 10;
-  }
-
-  return {
-    diabetes:     dVal !== null ? Math.min(99, Math.round(dVal * factor * 1.4)) : null,
-    hypertension: hVal !== null ? Math.min(99, Math.round(hVal * factor * 1.3)) : null,
-    metabolic:    mVal !== null ? Math.min(99, Math.round(mVal * factor * 1.35)) : null,
-    obesity:      oVal !== null ? Math.min(99, Math.round(oVal * factor * 1.2)) : null,
-  };
+function getRiskPercent(source, key) {
+  const value = source?.[key] ?? source?.risks?.[key]?.probability ?? null;
+  const percent = toPercent(value);
+  return percent === null ? null : Math.round(percent);
 }
 
 function ImprovedScreen({ setScreen, setTab, back }) {
@@ -41,14 +39,15 @@ function ImprovedScreen({ setScreen, setTab, back }) {
     originalUser,
     plan,
     updatePlan,
-    resetPlan,
-    setPlanGenerated
   } = useHealth();
 
   const [showModal, setShowModal] = useState(false);
+  const [modalStartY, setModalStartY] = useState(0);
+  const [modalClosing, setModalClosing] = useState(false);
 
   const handleCreatePlanClick = () => {
     if (plan) {
+      setModalClosing(false);
       setShowModal(true);
       return;
     }
@@ -57,20 +56,40 @@ function ImprovedScreen({ setScreen, setTab, back }) {
   };
 
   const handleKeepPlan = () => {
-    setShowModal(false);
-    setTab("plan");
-    setScreen("plan");
+    closeModal(() => {
+      setTab("plan");
+      setScreen("plan");
+    });
   };
 
-  const handleRecreatePlan = () => {
-    setShowModal(false);
-    resetPlan();
+  const handleCreateNewPlan = () => {
     updatePlan(null);
-    setPlanGenerated(false);
-    setTab("plan");
-    setScreen("plan");
+    closeModal(() => {
+      setTab("plan");
+      setScreen("plan");
+    });
   };
-  
+
+  const closeModal = (afterClose) => {
+    setModalStartY(0);
+    setModalClosing(true);
+    setTimeout(() => {
+      setShowModal(false);
+      setModalClosing(false);
+      if (afterClose) afterClose();
+    }, 220);
+  };
+
+  const handleModalDragStart = (clientY) => setModalStartY(clientY);
+
+  const handleModalDragEnd = (clientY) => {
+    if (modalStartY > 0 && clientY - modalStartY > 80) {
+      closeModal();
+      return;
+    }
+    setModalStartY(0);
+  };
+
   if (!user) {
     return <div style={{ padding: 20, textAlign: "center" }}>로딩 중...</div>;
   }
@@ -80,19 +99,14 @@ function ImprovedScreen({ setScreen, setTab, back }) {
 
   const originalScore = risks?.vitality_score ?? risks?.healthScore ?? null;
   const simScore = simulationResult?.vitality_score ?? originalScore;
+  const scoreDiff = originalScore !== null && simScore !== null ? Math.round(simScore - originalScore) : null;
 
-  // risks와 simulationResult 모두 HealthContext에서 동일한 정규화 적용됨 (0~100 정수)
   const targetRisksForCalc = simulationResult ?? risks;
-
-  const futBefore = calcFutureRisk(risks, oUser);
-  const futAfter  = calcFutureRisk(targetRisksForCalc, oUser);
-
-  const items = [
-    { label: "당뇨",     now: futBefore.diabetes,     then: futAfter.diabetes },
-    { label: "고혈압",   now: futBefore.hypertension, then: futAfter.hypertension },
-    { label: "대사증후군", now: futBefore.metabolic,  then: futAfter.metabolic },
-    { label: "비만",     now: futBefore.obesity,      then: futAfter.obesity },
-  ];
+  const items = DISEASE_ITEMS.map(({ key, label }) => ({
+    label,
+    now: getRiskPercent(risks, key),
+    then: getRiskPercent(targetRisksForCalc, key)
+  }));
 
   // 시뮬레이션 요약 텍스트 동적 생성 (스냅샷 비교)
   const summaryItems = [];
@@ -114,9 +128,10 @@ function ImprovedScreen({ setScreen, setTab, back }) {
 
   return (
     <div style={S.screen}>
-      <div style={{ ...S.topBar, padding: "16px 20px", display: "flex", alignItems: "center", gap: 12, flexShrink: 0, borderBottom: "1px solid #F3F4F6" }}>
-        <button onClick={back} style={{ background: "none", border: "none", fontSize: 20, cursor: "pointer" }}>←</button>
-        <span style={{ fontWeight: 700, fontSize: 16 }}>개선된 미래 나</span>
+      <div style={S.headerBar}>
+        <button onClick={back} style={S.backButton}>←</button>
+        <span style={S.headerTitle}>개선된 미래 나</span>
+        <span style={S.headerSpacer} />
       </div>
       <div style={{ ...S.scrollArea, paddingTop: 57 }}>
         <div style={{ padding: 16 }}>
@@ -152,6 +167,11 @@ function ImprovedScreen({ setScreen, setTab, back }) {
                   </svg>
                 </div>
                 <p style={{ color: "#2563EB", fontWeight: 600, fontSize: 13 }}>활력 지수 {simScore !== null ? `${simScore}점` : "연결 안됨."}</p>
+                {scoreDiff !== null && (
+                  <p style={{ color: scoreDiff >= 0 ? "#16A34A" : "#DC2626", fontWeight: 700, fontSize: 11, marginTop: 2 }}>
+                    {scoreDiff > 0 ? `+${scoreDiff}점` : scoreDiff < 0 ? `${scoreDiff}점` : "변동 없음"}
+                  </p>
+                )}
               </div>
             </div>
             
@@ -193,8 +213,13 @@ function ImprovedScreen({ setScreen, setTab, back }) {
                     </div>
                     {/* [유지 시 col] */}
                     <div style={{ width: 80, textAlign: "center" }}>
-                      <span style={{ fontSize: 16 }}>{nowLevel.dot}</span>{" "}
-                      <span style={{ fontSize: 12, color: nowLevel.color }}>{nowLevel.label}</span>
+                      <div>
+                        <span style={{ fontSize: 16 }}>{nowLevel.dot}</span>{" "}
+                        <span style={{ fontSize: 12, color: nowLevel.color }}>{nowLevel.label}</span>
+                      </div>
+                      <div style={{ fontSize: 10, color: "#6B7280", marginTop: 2, fontWeight: 600 }}>
+                        {item.now !== null && item.now !== undefined ? `${item.now}%` : "-"}
+                      </div>
                     </div>
                     {/* [화살표] */}
                     <div style={{ fontSize: 12, color: "#9CA3AF", margin: "0 8px" }}>→</div>
@@ -203,6 +228,9 @@ function ImprovedScreen({ setScreen, setTab, back }) {
                       <div>
                         <span style={{ fontSize: 16 }}>{thenLevel.dot}</span>{" "}
                         <span style={{ fontSize: 13, fontWeight: 700, color: thenLevel.color }}>{thenLevel.label}</span>
+                      </div>
+                      <div style={{ fontSize: 10, color: "#6B7280", marginTop: 2, fontWeight: 600 }}>
+                        {item.then !== null && item.then !== undefined ? `${item.then}%` : "-"}
                       </div>
                       <div style={{ fontSize: 10, color: deltaColor, marginTop: 2, fontWeight: 600 }}>{deltaText}</div>
                     </div>
@@ -230,29 +258,39 @@ function ImprovedScreen({ setScreen, setTab, back }) {
 
       {/* 확인 모달 */}
       {showModal && (
-        <div style={{
+        <div onClick={closeModal} style={{
           position: "fixed", inset: 0,
           background: "rgba(0,0,0,0.4)", zIndex: 400,
           display: "flex", alignItems: "flex-end",
           justifyContent: "center"
         }}>
-          <div style={{
+          <div
+            className={`bottom-sheet${modalClosing ? " closing" : ""}`}
+            onClick={(event) => event.stopPropagation()}
+            onTouchStart={(event) => handleModalDragStart(event.touches[0].clientY)}
+            onTouchEnd={(event) => handleModalDragEnd(event.changedTouches[0].clientY)}
+            onTouchCancel={() => setModalStartY(0)}
+            onMouseDown={(event) => handleModalDragStart(event.clientY)}
+            onMouseUp={(event) => handleModalDragEnd(event.clientY)}
+            onDragStart={(event) => event.preventDefault()}
+            style={{
+            position: "fixed", bottom: 0, left: 0, right: 0, margin: "0 auto",
             background: "#fff", borderRadius: "20px 20px 0 0",
-            padding: 24, width: "100%", maxWidth: 390,
-            boxSizing: "border-box", marginBottom: 56
+            padding: "24px 24px 80px", width: "100%", maxWidth: 390,
+            boxSizing: "border-box", zIndex: 500
           }}>
+            <div style={{ width: 36, height: 4, borderRadius: 2, background: "#E5E7EB", margin: "0 auto 16px" }} />
             <p style={{ fontWeight: 700, fontSize: 16, marginBottom: 8 }}>
               기존 플랜이 있어요
             </p>
             <p style={{ fontSize: 14, color: "#6B7280", marginBottom: 20 }}>
-              이전에 생성한 플랜을 유지할까요?<br />
-              새로 생성하면 체크 기록이 초기화됩니다.
+              이전에 생성한 플랜을 유지합니다.
             </p>
-            <button onClick={handleKeepPlan} style={{ ...S.btn("primary"), marginBottom: 10 }}>
+            <button onClick={handleKeepPlan} style={{ ...S.btn("primary") }}>
               기존 플랜 유지하기
             </button>
-            <button onClick={handleRecreatePlan} style={{ ...S.btn("outline") }}>
-              새로 생성하기
+            <button onClick={handleCreateNewPlan} style={{ ...S.btn("outline"), marginTop: 8 }}>
+              새 플랜으로 다시 만들기
             </button>
           </div>
         </div>

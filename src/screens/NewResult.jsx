@@ -8,19 +8,20 @@ function NewResultScreen({ setScreen, back }) {
     firstResult, 
     newResult, 
     plan, 
-    updatePlan, 
     risksUpdatedAt, 
-    resetPlan, 
-    setPlanGenerated 
+    updatePlan,
   } = useHealth();
 
   const [showModal, setShowModal] = useState(false);
+  const [modalStartY, setModalStartY] = useState(0);
+  const [modalClosing, setModalClosing] = useState(false);
 
   const handlePlanContinue = () => {
     if (plan) {
       const planGenTime = plan.generatedAt || 0;
       const risksTime = risksUpdatedAt || 0;
       if (planGenTime < risksTime) {
+        setModalClosing(false);
         setShowModal(true);
         return;
       }
@@ -29,16 +30,32 @@ function NewResultScreen({ setScreen, back }) {
   };
 
   const handleKeepPlan = () => {
-    setShowModal(false);
-    setScreen("plan");
+    closeModal(() => setScreen("plan"));
   };
 
-  const handleRecreatePlan = () => {
-    setShowModal(false);
-    resetPlan();
+  const handleCreateNewPlan = () => {
     updatePlan(null);
-    setPlanGenerated(false);
-    setScreen("plan");
+    closeModal(() => setScreen("plan"));
+  };
+
+  const closeModal = (afterClose) => {
+    setModalStartY(0);
+    setModalClosing(true);
+    setTimeout(() => {
+      setShowModal(false);
+      setModalClosing(false);
+      if (afterClose) afterClose();
+    }, 220);
+  };
+
+  const handleModalDragStart = (clientY) => setModalStartY(clientY);
+
+  const handleModalDragEnd = (clientY) => {
+    if (modalStartY > 0 && clientY - modalStartY > 80) {
+      closeModal();
+      return;
+    }
+    setModalStartY(0);
   };
 
   // 안전 가드: 최초 분석 또는 재분석 이력이 없을 경우 디폴트 맵 활용
@@ -100,9 +117,11 @@ function NewResultScreen({ setScreen, back }) {
   };
 
   const getExerciseInfo = (exercise) => {
-    if (exercise === "매일" || exercise === "주 5회 이상" || exercise === "5일 이상") return { status: "최상", color: "#10B981", pct: 100 };
+    if (exercise === "매일") return { status: "최상", color: "#10B981", pct: 100 };
+    if (exercise === "주 5~6회" || exercise === "주 5회 이상" || exercise === "5일 이상") return { status: "양호", color: "#10B981", pct: 85 };
     if (exercise === "주 3~4회" || exercise === "주 3-4회" || exercise === "3~4일") return { status: "양호", color: "#10B981", pct: 75 };
     if (exercise === "주 1~2회" || exercise === "주 1-2회" || exercise === "1~2일") return { status: "보통", color: "#F59E0B", pct: 50 };
+    if (exercise === "안함" || exercise === "0일") return { status: "낮음", color: "#EF4444", pct: 15 };
     return { status: "부족", color: "#DC2626", pct: 25 };
   };
 
@@ -206,29 +225,39 @@ function NewResultScreen({ setScreen, back }) {
 
       {/* 확인 모달 */}
       {showModal && (
-        <div style={{
+        <div onClick={closeModal} style={{
           position: "fixed", inset: 0,
           background: "rgba(0,0,0,0.4)", zIndex: 400,
           display: "flex", alignItems: "flex-end",
           justifyContent: "center"
         }}>
-          <div style={{
+          <div
+            className={`bottom-sheet${modalClosing ? " closing" : ""}`}
+            onClick={(event) => event.stopPropagation()}
+            onTouchStart={(event) => handleModalDragStart(event.touches[0].clientY)}
+            onTouchEnd={(event) => handleModalDragEnd(event.changedTouches[0].clientY)}
+            onTouchCancel={() => setModalStartY(0)}
+            onMouseDown={(event) => handleModalDragStart(event.clientY)}
+            onMouseUp={(event) => handleModalDragEnd(event.clientY)}
+            onDragStart={(event) => event.preventDefault()}
+            style={{
+            position: "fixed", bottom: 0, left: 0, right: 0, margin: "0 auto",
             background: "#fff", borderRadius: "20px 20px 0 0",
-            padding: 24, width: "100%", maxWidth: 390,
-            boxSizing: "border-box", marginBottom: 56
+            padding: "24px 24px 80px", width: "100%", maxWidth: 390,
+            boxSizing: "border-box", zIndex: 500
           }}>
+            <div style={{ width: 36, height: 4, borderRadius: 2, background: "#E5E7EB", margin: "0 auto 16px" }} />
             <p style={{ fontWeight: 700, fontSize: 16, marginBottom: 8 }}>
               기존 플랜이 있어요
             </p>
             <p style={{ fontSize: 14, color: "#6B7280", marginBottom: 20 }}>
-              이전에 생성한 플랜을 유지할까요?<br />
-              새로 생성하면 체크 기록이 초기화됩니다.
+              이전에 생성한 플랜을 유지합니다.
             </p>
-            <button onClick={handleKeepPlan} style={{ ...S.btn("primary"), marginBottom: 10 }}>
+            <button onClick={handleKeepPlan} style={{ ...S.btn("primary") }}>
               기존 플랜 유지하기
             </button>
-            <button onClick={handleRecreatePlan} style={{ ...S.btn("outline") }}>
-              새로 생성하기
+            <button onClick={handleCreateNewPlan} style={{ ...S.btn("outline"), marginTop: 8 }}>
+              새 플랜으로 다시 만들기
             </button>
           </div>
         </div>
