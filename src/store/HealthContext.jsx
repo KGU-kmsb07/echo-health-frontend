@@ -9,12 +9,73 @@ import {
   loadSimulationResult,
   saveWeeklyGoals,
   loadWeeklyGoals,
+  saveExerciseRecords,
+  loadExerciseRecords,
   loadQuestData,
   loadMileage
 } from "../storage/localStore";
 import { checkAndLockPastDays, refreshQuests } from "../services/mileageService";
 
 const HealthContext = createContext(null);
+
+const todayKey = () => {
+  const date = new Date();
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+};
+
+const dateKeyFromIso = (value) => {
+  if (!value) return todayKey();
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return todayKey();
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+};
+
+const normalizeWearPayload = (payload) => {
+  if (!payload) return { steps: null, bloodPressure: null, recordsByDate: {} };
+
+  const steps = payload.steps ?? payload.stepCount ?? payload.dailySteps ?? null;
+  const bp = payload.bloodPressure || null;
+  const sessions = Array.isArray(payload.sessions) ? payload.sessions : [];
+  const recordsByDate = {};
+
+  sessions.forEach((session, index) => {
+    const durationMinutes = Math.max(1, Number(session.durationMinutes ?? session.minutes ?? 0) || 1);
+    const dateKey = dateKeyFromIso(session.startTime || payload.syncedAt);
+    const record = {
+      id: session.id || `wear-${session.startTime || Date.now()}-${index}`,
+      source: "wearos",
+      type: session.type || session.exerciseType || "Wear OS",
+      duration: `${durationMinutes}분`,
+      durationMinutes,
+      intensity: Number(session.intensity ?? 5),
+      equivalent: null,
+      memo: "Wear OS sync"
+    };
+
+    recordsByDate[dateKey] = [...(recordsByDate[dateKey] || []), record];
+  });
+
+  return { steps, bloodPressure: bp, recordsByDate };
+};
+
+const mergeExerciseRecords = (incomingByDate) => {
+  const dateKeys = Object.keys(incomingByDate || {});
+  if (dateKeys.length === 0) return;
+
+  const current = loadExerciseRecords();
+  const merged = { ...current };
+
+  dateKeys.forEach((dateKey) => {
+    const existing = Array.isArray(merged[dateKey]) ? merged[dateKey] : [];
+    const existingIds = new Set(existing.map(record => record?.id).filter(Boolean));
+    const incoming = incomingByDate[dateKey].filter(record => !record.id || !existingIds.has(record.id));
+    if (incoming.length > 0) {
+      merged[dateKey] = [...existing, ...incoming];
+    }
+  });
+
+  saveExerciseRecords(merged);
+};
 
 export const calculateHealthData = (finalData, currentAge) => {
   return {
@@ -462,6 +523,49 @@ export function HealthProvider({ children }) {
   const updateTodaySteps = (steps) => {
     setTodaySteps(steps !== null && steps !== undefined ? Number(steps) : null);
   };
+
+  const applyWearOSPayload = (payload) => {
+    const normalized = normalizeWearPayload(payload);
+    setWearData(payload);
+
+    if (normalized.steps !== null && normalized.steps !== undefined) {
+      updateTodaySteps(normalized.steps);
+    }
+
+    if (normalized.bloodPressure?.systolic && normalized.bloodPressure?.diastolic) {
+      setUserProfile(prev => ({
+        ...prev,
+        bpMode: "wearos",
+        bloodPressure: {
+          systolic: Number(normalized.bloodPressure.systolic),
+          diastolic: Number(normalized.bloodPressure.diastolic)
+        },
+        wearLastSyncedAt: payload?.syncedAt || new Date().toISOString()
+      }));
+    }
+
+    mergeExerciseRecords(normalized.recordsByDate);
+  };
+
+  useEffect(() => {
+    const handleWearOSEvent = (event) => {
+      applyWearOSPayload(event.detail);
+    };
+
+    window.EchoHealthWearOSSync = applyWearOSPayload;
+    window.addEventListener("echo-health-wearos-sync", handleWearOSEvent);
+
+    if (window.__echoHealthWearData) {
+      applyWearOSPayload(window.__echoHealthWearData);
+    }
+
+    return () => {
+      if (window.EchoHealthWearOSSync === applyWearOSPayload) {
+        delete window.EchoHealthWearOSSync;
+      }
+      window.removeEventListener("echo-health-wearos-sync", handleWearOSEvent);
+    };
+  }, []);
 
   const navigateWithLoading = (setScreen, target, delay = 800, message = "로딩 중") => {
     setLoadingMessage(message);

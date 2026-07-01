@@ -174,6 +174,9 @@ function ExerciseScreen() {
     if (normalized.steps !== null && normalized.steps !== undefined) {
       updateTodaySteps(normalized.steps);
     }
+    if (wearData) {
+      setRecords(loadExerciseRecords());
+    }
   }, [wearData]);
 
   useEffect(() => {
@@ -202,8 +205,8 @@ function ExerciseScreen() {
   };
 
   useEffect(() => {
-    window.EchoHealthWearOSSync = (payload) => applyWearOSData(payload, { saveSessions: true });
-    const handleWearOSEvent = (event) => applyWearOSData(event.detail, { saveSessions: true });
+    window.EchoHealthWearOSSync = (payload) => applyWearOSData(payload, { saveSessions: false });
+    const handleWearOSEvent = (event) => applyWearOSData(event.detail, { saveSessions: false });
     window.addEventListener("echo-health-wearos-sync", handleWearOSEvent);
     return () => {
       if (window.EchoHealthWearOSSync) delete window.EchoHealthWearOSSync;

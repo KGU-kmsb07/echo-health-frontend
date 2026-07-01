@@ -23,7 +23,9 @@ export function buildAnalysisPayload(userProfile) {
     waist_cm: Number(userProfile.waist) || 80,
     current_smoking: toSmokingCode(userProfile.smoking),
     aerobic_activity: toAerobicCode(userProfile.exercise),
-    ...(healthCheckup || {})
+    ...(healthCheckup || {}),
+    systolic_bp: Number(userProfile.bloodPressure?.systolic) || Number(healthCheckup?.systolic_bp) || 120,
+    diastolic_bp: Number(userProfile.bloodPressure?.diastolic) || Number(healthCheckup?.diastolic_bp) || 80
   };
 
   return payload;
