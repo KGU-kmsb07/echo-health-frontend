@@ -96,8 +96,10 @@ function AppContent() {
 
   const handleOnboard4Complete = async (finalData) => {
     const age = Number(finalData.age);
-    const systolicVal = finalData.bpMode === "manual" ? Number(finalData.systolic) : 120;
-    const diastolicVal = finalData.bpMode === "manual" ? Number(finalData.diastolic) : 80;
+    const syncedSystolic = userProfile?.bloodPressure?.systolic;
+    const syncedDiastolic = userProfile?.bloodPressure?.diastolic;
+    const systolicVal = finalData.bpMode === "manual" ? Number(finalData.systolic) : Number(syncedSystolic) || 120;
+    const diastolicVal = finalData.bpMode === "manual" ? Number(finalData.diastolic) : Number(syncedDiastolic) || 80;
 
     const regionVal = finalData.region || "";
     const districtVal = finalData.district || "";
@@ -112,10 +114,13 @@ function AppContent() {
       height: Number(finalData.height),
       weight: Number(finalData.weight),
       waist: Number(finalData.waist) || 80,
+      bpMode: finalData.bpMode,
       bloodPressure: {
         systolic: systolicVal,
         diastolic: diastolicVal
       },
+      wearVitals: finalData.bpMode === "wear" ? userProfile?.wearVitals : undefined,
+      wearLastSyncedAt: finalData.bpMode === "wear" ? userProfile?.wearLastSyncedAt : undefined,
       smoking: finalData.smoking,
       drinking: finalData.drinking,
       exercise: finalData.exercise,

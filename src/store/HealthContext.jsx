@@ -31,9 +31,10 @@ const dateKeyFromIso = (value) => {
 };
 
 const normalizeWearPayload = (payload) => {
-  if (!payload) return { steps: null, bloodPressure: null, recordsByDate: {} };
+  if (!payload) return { steps: null, heartRate: null, bloodPressure: null, recordsByDate: {} };
 
   const steps = payload.steps ?? payload.stepCount ?? payload.dailySteps ?? null;
+  const heartRate = payload.heartRate ?? payload.heartRateBpm ?? payload.latestHeartRate ?? null;
   const bp = payload.bloodPressure || null;
   const sessions = Array.isArray(payload.sessions) ? payload.sessions : [];
   const recordsByDate = {};
@@ -55,7 +56,7 @@ const normalizeWearPayload = (payload) => {
     recordsByDate[dateKey] = [...(recordsByDate[dateKey] || []), record];
   });
 
-  return { steps, bloodPressure: bp, recordsByDate };
+  return { steps, heartRate, bloodPressure: bp, recordsByDate };
 };
 
 const mergeExerciseRecords = (incomingByDate) => {
@@ -535,10 +536,29 @@ export function HealthProvider({ children }) {
     if (normalized.bloodPressure?.systolic && normalized.bloodPressure?.diastolic) {
       setUserProfile(prev => ({
         ...prev,
-        bpMode: "wearos",
+        bpMode: "wear",
         bloodPressure: {
           systolic: Number(normalized.bloodPressure.systolic),
           diastolic: Number(normalized.bloodPressure.diastolic)
+        },
+        wearVitals: {
+          ...(prev.wearVitals || {}),
+          steps: normalized.steps !== null && normalized.steps !== undefined ? Number(normalized.steps) : prev.wearVitals?.steps ?? null,
+          heartRate: normalized.heartRate !== null && normalized.heartRate !== undefined ? Number(normalized.heartRate) : prev.wearVitals?.heartRate ?? null,
+          bloodPressure: {
+            systolic: Number(normalized.bloodPressure.systolic),
+            diastolic: Number(normalized.bloodPressure.diastolic)
+          }
+        },
+        wearLastSyncedAt: payload?.syncedAt || new Date().toISOString()
+      }));
+    } else if (normalized.steps !== null && normalized.steps !== undefined || normalized.heartRate !== null && normalized.heartRate !== undefined) {
+      setUserProfile(prev => ({
+        ...prev,
+        wearVitals: {
+          ...(prev.wearVitals || {}),
+          steps: normalized.steps !== null && normalized.steps !== undefined ? Number(normalized.steps) : prev.wearVitals?.steps ?? null,
+          heartRate: normalized.heartRate !== null && normalized.heartRate !== undefined ? Number(normalized.heartRate) : prev.wearVitals?.heartRate ?? null
         },
         wearLastSyncedAt: payload?.syncedAt || new Date().toISOString()
       }));

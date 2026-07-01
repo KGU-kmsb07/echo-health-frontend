@@ -85,8 +85,9 @@ function SimulateScreen({ setScreen, back }) {
     showLoading("결과를 계산하고 있어요...");
 
     const checkup = user.healthCheckup || {};
+    const hasCheckup = Object.keys(checkup).length > 0;
     const payload = {
-      input_mode: user.healthCheckup ? "checkup" : "simple",
+      input_mode: hasCheckup ? "checkup" : "simple",
       age: user.age,
       sex: user.gender === "남성" ? 1 : 2,
       height_cm: Number(checkup.height_cm ?? user.height),
