@@ -56,7 +56,7 @@ function BenefitsScreen({ back }) {
 
   const loadBenefits = async (nextQuery = query, nextRegion = selectedRegion, nextDistrict = selectedDistrict) => {
     setStatus("loading");
-    setMessage("");
+    setMessage("서버에서 정부24 혜택 정보를 받아오는 중입니다. 앱 오류가 아니니 잠시만 기다려주세요.");
     setPage(1);
     setExpandedTargets({});
     const riskTags = [];
@@ -85,8 +85,8 @@ function BenefitsScreen({ back }) {
     }
 
     setBenefits(result.items || result.benefits || []);
-    setStatus(result.status === "fallback" ? "fallback" : "success");
-    setMessage(result.status === "fallback" ? "정부24 연결 실패로 임시 데이터를 표시합니다." : "");
+    setStatus(result.status === "success" ? "success" : "error");
+    setMessage(result.status === "success" ? "" : "정부24 혜택 정보를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.");
   };
 
   useEffect(() => {
@@ -334,9 +334,7 @@ function BenefitsScreen({ back }) {
               </div>
             )}
 
-            {status === "loading" ? (
-              <div style={{ ...S.card, textAlign: "center", color: "#6B7280" }}>정부24 혜택 정보를 불러오는 중입니다.</div>
-            ) : sortedBenefits.length > 0 ? (
+            {status === "loading" ? null : sortedBenefits.length > 0 ? (
               <>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
                   <span style={{ fontSize: 12, color: "#6B7280" }}>총 {sortedBenefits.length}개</span>

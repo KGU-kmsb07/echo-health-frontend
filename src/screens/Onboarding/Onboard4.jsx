@@ -35,19 +35,12 @@ function Onboard4({ next, back }) {
       showLoading("건강 분석 중...");
 
       const userData = {
+        input_mode: "simple",
         age: user.age,
         sex: user.gender === "남성" ? 1 : 2,
         height_cm: Number(user.height),
         weight_kg: Number(user.weight),
         waist_cm: Number(user.waist) || 80,
-        systolic_bp: user.bloodPressure?.systolic || 120,
-        diastolic_bp: user.bloodPressure?.diastolic || 80,
-        fasting_glucose: 90,
-        hba1c: 5.2,
-        total_cholesterol: 180,
-        hdl_cholesterol: 50,
-        triglyceride: 120,
-        ldl_direct: 110,
         current_smoking: smoking !== "비흡연" ? 1 : 0,
         aerobic_activity: exercise === "안함" ? 0 : 1
       };

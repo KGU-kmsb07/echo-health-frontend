@@ -52,7 +52,7 @@ function PlanScreen({ setScreen }) {
 
   const fetchNewPlan = async (startDateOverride = null) => {
     try {
-      showLoading("AI가 맞춤 플랜을 생성하고 있어요...");
+      showLoading("서버에서 맞춤 플랜을 생성하는 중입니다. 잠시만 기다려주세요.");
       setLoading(true);
       const targetResult = simulationResult || risks;
       if (targetResult) {
@@ -155,7 +155,7 @@ function PlanScreen({ setScreen }) {
     return (
       <div style={S.screen}>
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", gap: 12 }}>
-          <span style={{ fontSize: 14, color: "#4B5563", fontWeight: 600 }}>AI가 맞춤 플랜을 생성하고 있어요...</span>
+          <span style={{ fontSize: 14, color: "#4B5563", fontWeight: 600 }}>서버에서 맞춤 플랜을 생성하는 중입니다.</span>
           <span style={{ fontSize: 18, color: "#3B82F6", fontWeight: 700 }}>...</span>
         </div>
       </div>

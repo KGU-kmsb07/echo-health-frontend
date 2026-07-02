@@ -36,7 +36,7 @@ const getPlanProgress = (startDateStr) => {
 };
 
 function HomeScreen({ setScreen, setTab }) {
-  const { user, risks, plan, notifications, setNotifications, todoCheckedState, planStartDate, weeklyGoals } = useHealth();
+  const { user, risks, plan, notifications, setNotifications, notifEnabled, setNotifEnabled, todoCheckedState, planStartDate, weeklyGoals } = useHealth();
   // risks는 HealthContext.setPredictedProfile에서 이미 백분율 정수(0~100)로 정규화됨
   const [showNotif, setShowNotif] = useState(false);
   const [startY, setStartY] = useState(0);
@@ -125,9 +125,9 @@ function HomeScreen({ setScreen, setTab }) {
           </p>
         </div>
         
-        <button onClick={openNotifications} style={{ marginLeft: "auto", background: "none", border: "none", cursor: "pointer", fontSize: 20, position: "relative", padding: 4 }}>
+        <button onClick={openNotifications} style={{ marginLeft: "auto", background: "none", border: "none", cursor: "pointer", fontSize: 20, position: "relative", padding: 4, color: notifEnabled ? "#111827" : "#9CA3AF", filter: notifEnabled ? "none" : "grayscale(1)" }}>
           🔔
-          {notifications.filter(n => n.unread).length > 0 && (
+          {notifEnabled && notifications.filter(n => n.unread).length > 0 && (
             <span style={{ position: "absolute", top: -2, right: -2, width: 16, height: 16, background: "#EF4444", borderRadius: "50%", color: "#fff", fontSize: 10, display: "flex", alignItems: "center", justifyContent: "center" }}>
               {notifications.filter(n => n.unread).length}
             </span>
@@ -254,6 +254,31 @@ function HomeScreen({ setScreen, setTab }) {
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
                 <span style={{ fontWeight: 700, fontSize: 16 }}>알림</span>
                 <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!notifEnabled) {
+                        closeNotifications();
+                        setTab?.("mypage");
+                        setScreen?.("mypage");
+                        return;
+                      }
+                      setNotifEnabled(false);
+                      localStorage.setItem("echo-health-marketing-consent", "false");
+                    }}
+                    style={{
+                      border: "1px solid #E5E7EB",
+                      borderRadius: 999,
+                      background: notifEnabled ? "#EFF6FF" : "#fff",
+                      color: notifEnabled ? "#2563EB" : "#6B7280",
+                      fontSize: 12,
+                      fontWeight: 700,
+                      padding: "5px 9px",
+                      cursor: "pointer"
+                    }}
+                  >
+                    {notifEnabled ? "켜짐" : "꺼짐"}
+                  </button>
                   {notifications.length > 0 && (
                     <button 
                       onClick={() => setNotifications([])} 

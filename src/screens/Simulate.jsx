@@ -85,7 +85,7 @@ function SimulateScreen({ setScreen, back }) {
     showLoading("결과를 계산하고 있어요...");
 
     const checkup = user.healthCheckup || {};
-    const hasCheckup = Object.keys(checkup).length > 0;
+    const hasCheckup = Object.keys(checkup).length > 0 && user.input_mode === "checkup";
     const payload = {
       input_mode: hasCheckup ? "checkup" : "simple",
       age: user.age,
@@ -95,12 +95,14 @@ function SimulateScreen({ setScreen, back }) {
       waist_cm: Number(checkup.waist_cm ?? user.waist) || 80,
       systolic_bp: Number(systolic),
       diastolic_bp: Number(diastolic),
-      fasting_glucose: Number(checkup.fasting_glucose ?? 90),
-      hba1c: Number(checkup.hba1c ?? 5.2),
-      total_cholesterol: Number(checkup.total_cholesterol ?? 180),
-      hdl_cholesterol: Number(checkup.hdl_cholesterol ?? 50),
-      triglyceride: Number(checkup.triglyceride ?? 120),
-      ldl_direct: Number(checkup.ldl_direct ?? 110),
+      ...(hasCheckup ? {
+        fasting_glucose: Number(checkup.fasting_glucose),
+        hba1c: Number(checkup.hba1c),
+        total_cholesterol: Number(checkup.total_cholesterol),
+        hdl_cholesterol: Number(checkup.hdl_cholesterol),
+        triglyceride: Number(checkup.triglyceride),
+        ldl_direct: Number(checkup.ldl_direct)
+      } : {}),
       current_smoking: smoking !== "비흡연" ? 1 : 0,
       aerobic_activity: exercise === "안함" ? 0 : 1
     };
@@ -146,7 +148,7 @@ function SimulateScreen({ setScreen, back }) {
       </div>
 
       {/* 스크롤 영역 */}
-      <div style={{ ...S.scrollArea, flex: 1, padding: "90px 16px 24px", paddingBottom: 100 }}>
+      <div style={{ ...S.scrollArea, flex: 1, padding: "90px 16px 24px", paddingBottom: 132 }}>
         
         {/* 체중 조절 */}
         <div style={S.card}>
@@ -299,7 +301,7 @@ function SimulateScreen({ setScreen, back }) {
         <p style={{ fontSize: 11, color: "#9CA3AF", margin: "16px 0 0" }}>* KNHANES 회귀 모델 기반 추정치이며, 확정된 건강 예측이 아닙니다.</p>
 
         {/* 변화 결과 확인하기 버튼 */}
-        <div style={{ marginTop: 24, paddingBottom: 32 }}>
+        <div style={{ marginTop: 24, paddingBottom: 72 }}>
           <button 
             onClick={handleConfirm} 
             style={{

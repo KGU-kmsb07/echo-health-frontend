@@ -1,6 +1,8 @@
 ﻿import { useState } from "react";
 import S from "../styles/shared";
-import { privacyConsentDocumentUrl, saveConsent } from "../api/echoApi";
+import { saveConsent } from "../api/echoApi";
+import PrivacyDocumentModal from "../components/PrivacyDocumentModal";
+import { requestAppNotificationPermission } from "../services/notificationPermission";
 
 const CONSENT_KEY = "echo-health-privacy-consent";
 
@@ -15,6 +17,7 @@ export function savePrivacyConsent(value) {
 function PrivacyConsentScreen({ next, back }) {
   const [required, setRequired] = useState(hasPrivacyConsent());
   const [optional, setOptional] = useState(localStorage.getItem("echo-health-marketing-consent") === "true");
+  const [documentTitle, setDocumentTitle] = useState("");
   const checkboxStyle = {
     width: 22,
     height: 22,
@@ -26,12 +29,20 @@ function PrivacyConsentScreen({ next, back }) {
 
   const handleNext = async () => {
     if (!required) return;
+    let optionalAllowed = optional;
+    if (optional) {
+      const permission = await requestAppNotificationPermission();
+      optionalAllowed = permission.granted;
+      if (!permission.granted) {
+        alert("기기 알림 권한이 허용되지 않아 앱 알림 수신 동의는 꺼짐으로 저장됩니다.");
+      }
+    }
     savePrivacyConsent(true);
-    localStorage.setItem("echo-health-marketing-consent", optional ? "true" : "false");
-    localStorage.setItem("echo-health-notif-enabled", optional ? "true" : "false");
+    localStorage.setItem("echo-health-marketing-consent", optionalAllowed ? "true" : "false");
+    localStorage.setItem("echo-health-notif-enabled", optionalAllowed ? "true" : "false");
     await saveConsent({
       requiredConsent: true,
-      optionalConsent: optional,
+      optionalConsent: optionalAllowed,
       consentVersion: "2024",
       consentedAt: new Date().toISOString()
     });
@@ -66,9 +77,9 @@ function PrivacyConsentScreen({ next, back }) {
             <span style={{ display: "block", fontSize: 12, color: "#6B7280", lineHeight: 1.5 }}>
               이름, 나이, 성별, 신체정보, 생활습관, 혈압 정보를 앱 내 분석과 개인화 추천에 사용합니다.
             </span>
-            <a href={privacyConsentDocumentUrl} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()} style={{ display: "inline-block", marginTop: 8, fontSize: 12, color: "#2563EB", fontWeight: 700, textDecoration: "none" }}>
+            <button type="button" onClick={e => { e.stopPropagation(); setDocumentTitle("개인정보 처리 동의 전문"); }} style={{ display: "inline-block", marginTop: 8, padding: 0, border: "none", background: "transparent", fontSize: 12, color: "#2563EB", fontWeight: 700, cursor: "pointer" }}>
               개인정보 처리 동의 전문 보기
-            </a>
+            </button>
           </span>
         </label>
 
@@ -80,13 +91,13 @@ function PrivacyConsentScreen({ next, back }) {
             style={checkboxStyle}
           />
           <span style={{ flex: 1, minWidth: 0 }}>
-            <strong style={{ display: "block", fontSize: 14, color: "#111827", marginBottom: 4 }}>[선택] 건강 혜택 알림 동의</strong>
+            <strong style={{ display: "block", fontSize: 14, color: "#111827", marginBottom: 4 }}>[선택] 앱 알림 수신 동의</strong>
             <span style={{ display: "block", fontSize: 12, color: "#6B7280", lineHeight: 1.5 }}>
-              건강 혜택 안내와 실천 리마인더 알림을 받을 수 있습니다.
+              실천 리마인더와 건강 정보 알림을 받을 수 있습니다.
             </span>
-            <a href={privacyConsentDocumentUrl} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()} style={{ display: "inline-block", marginTop: 8, fontSize: 12, color: "#2563EB", fontWeight: 700, textDecoration: "none" }}>
+            <button type="button" onClick={e => { e.stopPropagation(); setDocumentTitle("선택 동의 안내"); }} style={{ display: "inline-block", marginTop: 8, padding: 0, border: "none", background: "transparent", fontSize: 12, color: "#2563EB", fontWeight: 700, cursor: "pointer" }}>
               선택 동의 안내 보기
-            </a>
+            </button>
           </span>
         </label>
       </div>
@@ -98,6 +109,8 @@ function PrivacyConsentScreen({ next, back }) {
       >
         동의하고 계속
       </button>
+      <PrivacyDocumentModal open={Boolean(documentTitle)} title={documentTitle || "개인정보 처리 동의 전문"} onClose={() => setDocumentTitle("")} />
+
     </div>
   );
 }

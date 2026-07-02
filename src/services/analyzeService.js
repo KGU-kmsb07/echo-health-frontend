@@ -14,7 +14,7 @@ function toAerobicCode(exercise) {
 
 export function buildAnalysisPayload(userProfile) {
   const healthCheckup = userProfile.healthCheckup || null;
-  const hasCheckup = healthCheckup && Object.keys(healthCheckup).length > 0;
+  const hasCheckup = healthCheckup && Object.keys(healthCheckup).length > 0 && userProfile.input_mode === "checkup";
   const payload = {
     input_mode: hasCheckup ? "checkup" : "simple",
     age: Number(userProfile.age),
@@ -24,9 +24,7 @@ export function buildAnalysisPayload(userProfile) {
     waist_cm: Number(userProfile.waist) || 80,
     current_smoking: toSmokingCode(userProfile.smoking),
     aerobic_activity: toAerobicCode(userProfile.exercise),
-    ...(hasCheckup ? healthCheckup : {}),
-    systolic_bp: Number(healthCheckup?.systolic_bp) || Number(userProfile.bloodPressure?.systolic) || 120,
-    diastolic_bp: Number(healthCheckup?.diastolic_bp) || Number(userProfile.bloodPressure?.diastolic) || 80
+    ...(hasCheckup ? healthCheckup : {})
   };
 
   return payload;

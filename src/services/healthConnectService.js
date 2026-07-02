@@ -6,6 +6,42 @@ export function isHealthConnectAvailableInApp() {
   return Boolean(getHealthConnectPlugin());
 }
 
+function dispatchWearOSPayload(payload) {
+  window.__echoHealthWearData = payload;
+  window.dispatchEvent(new CustomEvent("echo-health-wearos-sync", { detail: payload }));
+}
+
+function hasBloodPressurePermission(status) {
+  const granted = Array.isArray(status?.grantedPermissions) ? status.grantedPermissions : [];
+  return granted.some(permission => String(permission).includes("BloodPressure"));
+}
+
+export async function requestWearOSBloodPressureAndSync() {
+  const healthConnect = getHealthConnectPlugin();
+  if (!healthConnect) {
+    throw new Error("Android 앱에서만 Wear OS 혈압 연동을 사용할 수 있습니다.");
+  }
+
+  const status = healthConnect.getStatus ? await healthConnect.getStatus() : null;
+  if (status && status.available === false) {
+    throw new Error("이 기기에서 Health Connect를 사용할 수 없습니다.");
+  }
+
+  if (!hasBloodPressurePermission(status) && healthConnect.requestBloodPressurePermission) {
+    const permissionResult = await healthConnect.requestBloodPressurePermission();
+    if (permissionResult?.granted === false) {
+      throw new Error("혈압 데이터 접근 권한이 허용되지 않았습니다.");
+    }
+  }
+
+  const payload = healthConnect.syncBloodPressure
+    ? await healthConnect.syncBloodPressure()
+    : await healthConnect.sync();
+
+  dispatchWearOSPayload(payload);
+  return payload;
+}
+
 export async function requestWearOSPermissionAndSync() {
   const healthConnect = getHealthConnectPlugin();
   if (!healthConnect) {
@@ -33,7 +69,6 @@ export async function requestWearOSPermissionAndSync() {
   }
 
   const payload = await healthConnect.sync();
-  window.__echoHealthWearData = payload;
-  window.dispatchEvent(new CustomEvent("echo-health-wearos-sync", { detail: payload }));
+  dispatchWearOSPayload(payload);
   return payload;
 }

@@ -16,6 +16,19 @@ function NewResultScreen({ setScreen, back }) {
   const [modalStartY, setModalStartY] = useState(0);
   const [modalClosing, setModalClosing] = useState(false);
 
+  const toRiskRatio = (value) => {
+    if (value === null || value === undefined || value === "") return null;
+    const number = Number(value);
+    if (!Number.isFinite(number)) return null;
+    if (number > 100) return 1;
+    return Math.max(0, Math.min(1, number > 1 ? number / 100 : number));
+  };
+
+  const formatRiskPercent = (value, digits = 1) => {
+    const ratio = toRiskRatio(value);
+    return ratio === null ? "-" : `${(ratio * 100).toFixed(digits)}%`;
+  };
+
   const handlePlanContinue = () => {
     if (plan) {
       const planGenTime = plan.generatedAt || 0;
@@ -86,8 +99,11 @@ function NewResultScreen({ setScreen, back }) {
     let currPercent = currVal;
     
     if (label === "당뇨 위험" || label === "고혈압 위험" || label === "대사증후군") {
-      prevPercent = prevVal * 100;
-      currPercent = currVal * 100;
+      const prevRatio = toRiskRatio(prevVal);
+      const currRatio = toRiskRatio(currVal);
+      if (prevRatio === null || currRatio === null) return { text: "-", color: "#9CA3AF" };
+      prevPercent = prevRatio * 100;
+      currPercent = currRatio * 100;
     } else if (label === "비만 위험") {
       prevPercent = prevVal === 1 ? 75 : 10;
       currPercent = currVal === 1 ? 75 : 10;
@@ -176,9 +192,9 @@ function NewResultScreen({ setScreen, back }) {
                 {[
                   { label: "건강 점수", prev: `${prevUser.vitality_score ?? prevUser.healthScore}점`, curr: `${currUser.vitality_score ?? currUser.healthScore}점`, valPrev: prevUser.vitality_score ?? prevUser.healthScore, valCurr: currUser.vitality_score ?? currUser.healthScore },
                   { label: "건강 나이", prev: `${prevUser.healthAge}세`, curr: `${currUser.healthAge}세`, valPrev: prevUser.healthAge, valCurr: currUser.healthAge },
-                  { label: "당뇨 위험", prev: `${(prevRisks.diabetes * 100).toFixed(1)}%`, curr: `${(currRisks.diabetes * 100).toFixed(1)}%`, valPrev: prevRisks.diabetes, valCurr: currRisks.diabetes },
-                  { label: "고혈압 위험", prev: `${(prevRisks.hypertension * 100).toFixed(1)}%`, curr: `${(currRisks.hypertension * 100).toFixed(1)}%`, valPrev: prevRisks.hypertension, valCurr: currRisks.hypertension },
-                  { label: "대사증후군", prev: `${(prevRisks.metabolic * 100).toFixed(0)}%`, curr: `${(currRisks.metabolic * 100).toFixed(0)}%`, valPrev: prevRisks.metabolic, valCurr: currRisks.metabolic },
+                  { label: "당뇨 위험", prev: formatRiskPercent(prevRisks.diabetes), curr: formatRiskPercent(currRisks.diabetes), valPrev: prevRisks.diabetes, valCurr: currRisks.diabetes },
+                  { label: "고혈압 위험", prev: formatRiskPercent(prevRisks.hypertension), curr: formatRiskPercent(currRisks.hypertension), valPrev: prevRisks.hypertension, valCurr: currRisks.hypertension },
+                  { label: "대사증후군", prev: formatRiskPercent(prevRisks.metabolic, 0), curr: formatRiskPercent(currRisks.metabolic, 0), valPrev: prevRisks.metabolic, valCurr: currRisks.metabolic },
                   { label: "비만 위험", prev: `${prevRisks.obesity === 1 ? 75 : 10}%`, curr: `${currRisks.obesity === 1 ? 75 : 10}%`, valPrev: prevRisks.obesity, valCurr: currRisks.obesity },
                 ].map(r => {
                   const deltaInfo = formatDelta(r.label, r.valPrev, r.valCurr);
@@ -219,7 +235,7 @@ function NewResultScreen({ setScreen, back }) {
               4주 실천으로 혈당·혈압·체중이 모두 개선됐습니다. 특히 공복혈당이 정상 범위에 진입했고, 운동 빈도 증가로 대사증후군 위험이 크게 낮아졌어요. 이 추세를 유지하면 추가 8주 후 당뇨 위험이 정상 범주에 도달할 수 있습니다.
             </p>
           </div>
-          <button onClick={handlePlanContinue} style={{ ...S.btn(), marginTop: 12 }}>플랜 계속하기</button>
+          <button onClick={handlePlanContinue} style={{ ...S.btn(), marginTop: 12, marginBottom: 72 }}>플랜 계속하기</button>
         </div>
       </div>
 

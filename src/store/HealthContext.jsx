@@ -1,5 +1,4 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
-import { MOCK_BENEFITS } from "../mock/mockData";
 import {
   saveUserProfile,
   loadUserProfile,
@@ -31,10 +30,9 @@ const dateKeyFromIso = (value) => {
 };
 
 const normalizeWearPayload = (payload) => {
-  if (!payload) return { steps: null, heartRate: null, bloodPressure: null, recordsByDate: {} };
+  if (!payload) return { steps: null, bloodPressure: null, recordsByDate: {} };
 
   const steps = payload.steps ?? payload.stepCount ?? payload.dailySteps ?? null;
-  const heartRate = payload.heartRate ?? payload.heartRateBpm ?? payload.latestHeartRate ?? null;
   const bp = payload.bloodPressure || null;
   const sessions = Array.isArray(payload.sessions) ? payload.sessions : [];
   const recordsByDate = {};
@@ -42,6 +40,7 @@ const normalizeWearPayload = (payload) => {
   sessions.forEach((session, index) => {
     const durationMinutes = Math.max(1, Number(session.durationMinutes ?? session.minutes ?? 0) || 1);
     const dateKey = dateKeyFromIso(session.startTime || payload.syncedAt);
+    if (dateKey !== todayKey()) return;
     const record = {
       id: session.id || `wear-${session.startTime || Date.now()}-${index}`,
       source: "wearos",
@@ -56,7 +55,7 @@ const normalizeWearPayload = (payload) => {
     recordsByDate[dateKey] = [...(recordsByDate[dateKey] || []), record];
   });
 
-  return { steps, heartRate, bloodPressure: bp, recordsByDate };
+  return { steps, bloodPressure: bp, recordsByDate };
 };
 
 const mergeExerciseRecords = (incomingByDate) => {
@@ -108,7 +107,7 @@ export function normalizePredictedProfile(raw, userProfile) {
   let metabolicVal = 0.10;
   if (raw.metabolic !== undefined && raw.metabolic !== null) {
     const m = Number(raw.metabolic);
-    metabolicVal = m > 1.0 ? m / 100 : m;
+    metabolicVal = Number.isFinite(m) ? Math.max(0, Math.min(1, m > 1.0 ? m / 100 : m)) : null;
   } else if (userProfile) {
     let score = 0;
     const waistVal = Number(userProfile.waist);
@@ -126,7 +125,8 @@ export function normalizePredictedProfile(raw, userProfile) {
   const toDec = (val) => {
     if (val === null || val === undefined) return null;
     const n = Number(val);
-    return n > 1.0 ? n / 100 : n;
+    if (!Number.isFinite(n)) return null;
+    return Math.max(0, Math.min(1, n > 1.0 ? n / 100 : n));
   };
 
   // obesity도 1보다 큰 백분율 형태로 들어오는 경우 0 또는 1로 이진화
@@ -218,7 +218,6 @@ const DEFAULT_WEEKLY_PLANS = [
 ];
 
 export const generateDynamicNotifications = (user, notifEnabled = true) => {
-  if (!notifEnabled) return [];
   const list = [];
   const now = new Date();
   const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
@@ -398,11 +397,13 @@ export function HealthProvider({ children }) {
     localStorage.setItem("echo-health-risks-updated-at", String(risksUpdatedAt));
   }, [risksUpdatedAt]);
 
-  const [benefits, setBenefits] = useState(MOCK_BENEFITS);
+  const [benefits, setBenefits] = useState([]);
 
   const [notifEnabled, setNotifEnabled] = useState(() => {
+    const consent = localStorage.getItem("echo-health-marketing-consent") === "true";
+    if (!consent) return false;
     const saved = localStorage.getItem("echo-health-notif-enabled");
-    return saved !== "false";
+    return saved === "true";
   });
 
   useEffect(() => {
@@ -418,8 +419,7 @@ export function HealthProvider({ children }) {
         console.error("Failed to parse notifications", e);
       }
     }
-    const savedNotifEnabled = localStorage.getItem("echo-health-notif-enabled") !== "false";
-    return generateDynamicNotifications(userProfile, savedNotifEnabled);
+    return generateDynamicNotifications(userProfile, true);
   });
 
   useEffect(() => {
@@ -544,7 +544,6 @@ export function HealthProvider({ children }) {
         wearVitals: {
           ...(prev.wearVitals || {}),
           steps: normalized.steps !== null && normalized.steps !== undefined ? Number(normalized.steps) : prev.wearVitals?.steps ?? null,
-          heartRate: normalized.heartRate !== null && normalized.heartRate !== undefined ? Number(normalized.heartRate) : prev.wearVitals?.heartRate ?? null,
           bloodPressure: {
             systolic: Number(normalized.bloodPressure.systolic),
             diastolic: Number(normalized.bloodPressure.diastolic)
@@ -552,13 +551,12 @@ export function HealthProvider({ children }) {
         },
         wearLastSyncedAt: payload?.syncedAt || new Date().toISOString()
       }));
-    } else if (normalized.steps !== null && normalized.steps !== undefined || normalized.heartRate !== null && normalized.heartRate !== undefined) {
+    } else if (normalized.steps !== null && normalized.steps !== undefined) {
       setUserProfile(prev => ({
         ...prev,
         wearVitals: {
           ...(prev.wearVitals || {}),
-          steps: normalized.steps !== null && normalized.steps !== undefined ? Number(normalized.steps) : prev.wearVitals?.steps ?? null,
-          heartRate: normalized.heartRate !== null && normalized.heartRate !== undefined ? Number(normalized.heartRate) : prev.wearVitals?.heartRate ?? null
+          steps: normalized.steps !== null && normalized.steps !== undefined ? Number(normalized.steps) : prev.wearVitals?.steps ?? null
         },
         wearLastSyncedAt: payload?.syncedAt || new Date().toISOString()
       }));
@@ -918,7 +916,7 @@ export function HealthProvider({ children }) {
 
     setWeeklyGoals({ steps: 8000, exerciseMinutes: 30 });
 
-    const freshNotifs = generateDynamicNotifications(newUser || user, notifEnabled);
+    const freshNotifs = generateDynamicNotifications(newUser || user, true);
     setNotifications(freshNotifs);
     localStorage.setItem("echo-health-notifications", JSON.stringify(freshNotifs));
   };

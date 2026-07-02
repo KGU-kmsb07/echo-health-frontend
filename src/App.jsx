@@ -28,8 +28,8 @@ import { runPlanGeneration } from './services/planService';
 
 function AppContent() {
   const { userProfile, predictedProfile, setUserProfile, setPredictedProfile, hasOnboarded, setHasOnboarded, setFirstResult, calculateHealthData, resetPlan, addNotification, setOriginalUser, isLoading, loadingMessage, showLoading, hideLoading, isEditMode, setEditMode, navigateWithLoading, updatePlan } = useHealth();
-  const [screen, setScreen] = useState(hasOnboarded ? "home" : "splash");
-  const [screenHistory, setScreenHistory] = useState(hasOnboarded ? ["home"] : ["splash"]);
+  const [screen, setScreen] = useState("splash");
+  const [screenHistory, setScreenHistory] = useState(["splash"]);
   const [tab, setTab] = useState("home");
   const [showCoach, setShowCoach] = useState(false);
   const [coachStartY, setCoachStartY] = useState(0);
@@ -95,6 +95,12 @@ function AppContent() {
   };
 
   const handleOnboard4Complete = async (finalData) => {
+    const toRiskRatio = (value) => {
+      if (value === null || value === undefined || value === "") return null;
+      const number = Number(value);
+      if (!Number.isFinite(number)) return null;
+      return Math.max(0, Math.min(1, number > 1 ? number / 100 : number));
+    };
     const age = Number(finalData.age);
     const syncedSystolic = userProfile?.bloodPressure?.systolic;
     const syncedDiastolic = userProfile?.bloodPressure?.diastolic;
@@ -114,6 +120,7 @@ function AppContent() {
       height: Number(finalData.height),
       weight: Number(finalData.weight),
       waist: Number(finalData.waist) || 80,
+      input_mode: "simple",
       bpMode: finalData.bpMode,
       bloodPressure: {
         systolic: systolicVal,
@@ -171,9 +178,9 @@ function AppContent() {
       healthScore: analysisResult.vitality_score,
       healthAge: analysisResult.healthAge ?? analysisResult.health_age ?? age,
       risks: {
-        diabetes: analysisResult.diabetes_prob !== undefined ? (analysisResult.diabetes_prob > 1 ? analysisResult.diabetes_prob / 100 : analysisResult.diabetes_prob) : (analysisResult.diabetes > 1 ? analysisResult.diabetes / 100 : analysisResult.diabetes),
-        hypertension: analysisResult.hypertension_prob !== undefined ? (analysisResult.hypertension_prob > 1 ? analysisResult.hypertension_prob / 100 : analysisResult.hypertension_prob) : (analysisResult.hypertension > 1 ? analysisResult.hypertension / 100 : analysisResult.hypertension),
-        metabolic: analysisResult.metabolic !== undefined ? (analysisResult.metabolic > 1 ? analysisResult.metabolic / 100 : analysisResult.metabolic) : 0.10,
+        diabetes: toRiskRatio(analysisResult.diabetes_prob ?? analysisResult.diabetes),
+        hypertension: toRiskRatio(analysisResult.hypertension_prob ?? analysisResult.hypertension),
+        metabolic: toRiskRatio(analysisResult.metabolic) ?? 0.10,
         obesity: analysisResult.obesity_status !== undefined ? analysisResult.obesity_status : (analysisResult.obesity > 1 ? (analysisResult.obesity >= 50 ? 1 : 0) : analysisResult.obesity)
       }
     } : calculateHealthData({
@@ -222,7 +229,7 @@ function AppContent() {
   const renderScreen = () => {
     const getScreenComponent = () => {
       switch (screen) {
-        case "splash": return <SplashScreen next={() => navigateTo(hasPrivacyConsent() ? "onboard1" : "privacy")} />;
+        case "splash": return <SplashScreen next={() => navigateTo(hasOnboarded ? "home" : hasPrivacyConsent() ? "onboard1" : "privacy")} />;
         case "privacy": return <PrivacyConsentScreen next={() => navigateTo("onboard1")} back={goBack} />;
         case "onboard1": return <OnboardStep1 next={(data) => { setTempOnboardData(prev => ({ ...prev, ...data })); navigateTo("onboard2"); }} back={goBack} />;
         case "onboard2": return <OnboardStep2 next={(data) => { setTempOnboardData(prev => ({ ...prev, ...data })); navigateTo("onboard3"); }} back={goBack} />;

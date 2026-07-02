@@ -1,13 +1,14 @@
-import { useState } from 'react';
+﻿import { useState } from 'react';
 import S from '../styles/shared';
-import { useHealth, generateDynamicNotifications } from '../context/HealthContext';
+import { useHealth } from '../context/HealthContext';
 import { hasPrivacyConsent, savePrivacyConsent } from './PrivacyConsent';
-import { privacyConsentDocumentUrl } from '../api/echoApi';
+import PrivacyDocumentModal from '../components/PrivacyDocumentModal';
+import { requestAppNotificationPermission } from '../services/notificationPermission';
 
 function MyPageScreen({ setScreen }) {
-  const { user, setNotifEnabled, setNotifications, setEditMode } = useHealth();
+  const { user, notifEnabled, setNotifEnabled, setEditMode } = useHealth();
   const [privacyConsent, setPrivacyConsent] = useState(hasPrivacyConsent());
-  const [marketingConsent, setMarketingConsent] = useState(localStorage.getItem("echo-health-marketing-consent") === "true");
+  const [documentTitle, setDocumentTitle] = useState("");
 
   if (!user) {
     return <div style={{ padding: 20, textAlign: "center" }}>로딩 중...</div>;
@@ -15,7 +16,7 @@ function MyPageScreen({ setScreen }) {
   return (
     <div style={S.screen}>
       <div style={{ ...S.scrollArea, paddingTop: 65 }}>
-        <div style={{ padding: "0 16px 16px" }}>
+        <div style={{ padding: "16px 16px 16px" }}>
           <div style={{ ...S.topBar, display: "flex", alignItems: "center", gap: 12, padding: "20px 16px 12px", borderBottom: "1px solid #F3F4F6" }}>
             <div style={{ width: 32, height: 32, borderRadius: "50%", background: "#2563EB", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 700 }}>E</div>
             <span style={{ fontWeight: 700, fontSize: 16 }}>Echo Health</span>
@@ -81,9 +82,9 @@ function MyPageScreen({ setScreen }) {
               <div>
                 <p style={{ fontSize: 14, color: "#374151", margin: "0 0 2px" }}>건강정보 수집 및 이용</p>
                 <p style={{ fontSize: 11, color: "#9CA3AF", margin: 0 }}>분석과 맞춤 플랜 생성을 위한 필수 동의</p>
-                <a href={privacyConsentDocumentUrl} target="_blank" rel="noreferrer" style={{ display: "inline-block", marginTop: 6, fontSize: 12, color: "#2563EB", fontWeight: 700, textDecoration: "none" }}>
+                <button type="button" onClick={() => setDocumentTitle("개인정보 처리 동의 전문")} style={{ display: "inline-block", marginTop: 6, padding: 0, border: "none", background: "transparent", fontSize: 12, color: "#2563EB", fontWeight: 700, cursor: "pointer" }}>
                   전문 보기
-                </a>
+                </button>
               </div>
               <button
                 onClick={() => {
@@ -98,23 +99,30 @@ function MyPageScreen({ setScreen }) {
             </div>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 0 2px", borderTop: "1px solid #F3F4F6", marginTop: 8 }}>
               <div>
-                <p style={{ fontSize: 14, color: "#374151", margin: "0 0 2px" }}>건강 혜택 알림</p>
-                <p style={{ fontSize: 11, color: "#9CA3AF", margin: 0 }}>지역 혜택과 실천 리마인더 안내</p>
-                <a href={privacyConsentDocumentUrl} target="_blank" rel="noreferrer" style={{ display: "inline-block", marginTop: 6, fontSize: 12, color: "#2563EB", fontWeight: 700, textDecoration: "none" }}>
+                <p style={{ fontSize: 14, color: "#374151", margin: "0 0 2px" }}>앱 알림</p>
+                <p style={{ fontSize: 11, color: "#9CA3AF", margin: 0 }}>실천 리마인더와 건강 정보 알림 수신</p>
+                <button type="button" onClick={() => setDocumentTitle("개인정보 처리 동의 전문")} style={{ display: "inline-block", marginTop: 6, padding: 0, border: "none", background: "transparent", fontSize: 12, color: "#2563EB", fontWeight: 700, cursor: "pointer" }}>
                   전문 보기
-                </a>
+                </button>
               </div>
               <button
-                onClick={() => {
-                  const next = !marketingConsent;
+                onClick={async () => {
+                  const next = !notifEnabled;
+                  if (next) {
+                    const permission = await requestAppNotificationPermission();
+                    if (!permission.granted) {
+                      alert("기기 알림 권한이 허용되지 않았습니다. 알림을 받으려면 앱/브라우저 설정에서 알림 권한을 허용해주세요.");
+                      localStorage.setItem("echo-health-marketing-consent", "false");
+                      setNotifEnabled(false);
+                      return;
+                    }
+                  }
                   localStorage.setItem("echo-health-marketing-consent", next ? "true" : "false");
                   setNotifEnabled(next);
-                  setNotifications(next ? generateDynamicNotifications(user, true) : []);
-                  setMarketingConsent(next);
                 }}
-                style={{ border: "1px solid #E5E7EB", background: marketingConsent ? "#EFF6FF" : "#fff", color: marketingConsent ? "#2563EB" : "#6B7280", borderRadius: 999, padding: "6px 10px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}
+                style={{ border: "1px solid #E5E7EB", background: notifEnabled ? "#EFF6FF" : "#fff", color: notifEnabled ? "#2563EB" : "#6B7280", borderRadius: 999, padding: "6px 10px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}
               >
-                {marketingConsent ? "동의중" : "미동의"}
+                {notifEnabled ? "동의중" : "미동의"}
               </button>
             </div>
           </div>
@@ -151,6 +159,7 @@ function MyPageScreen({ setScreen }) {
           <p style={{ textAlign: "center", fontSize: 11, color: "#9CA3AF" }}>Echo Health v1.0.0 · © 2026 Echo Health Team<br />본 서비스는 공공 데이터 기반 통계 시뮬레이션이며 의료적 진단이 아닙니다.</p>
         </div>
       </div>
+      <PrivacyDocumentModal open={Boolean(documentTitle)} title={documentTitle || "개인정보 처리 동의 전문"} onClose={() => setDocumentTitle("")} />
     </div>
   );
 }

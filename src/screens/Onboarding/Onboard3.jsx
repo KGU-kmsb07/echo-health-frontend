@@ -1,7 +1,7 @@
 import { useState } from "react";
 import S from '../../styles/shared';
 import { useHealth } from '../../context/HealthContext';
-import { isHealthConnectAvailableInApp, requestWearOSPermissionAndSync } from "../../services/healthConnectService";
+import { isHealthConnectAvailableInApp, requestWearOSBloodPressureAndSync } from "../../services/healthConnectService";
 
 const restrictInteger = (val, max = 3) => {
   const numOnly = val.replace(/[^0-9]/g, "");
@@ -16,10 +16,10 @@ function OnboardStep3({ next, back }) {
   const [errors, setErrors] = useState({});
   const [wearSyncing, setWearSyncing] = useState(false);
   const [wearSyncMessage, setWearSyncMessage] = useState("");
-  const [wearOptionsVisible, setWearOptionsVisible] = useState(user?.bpMode === "wear");
+  const [wearOptionsVisible, setWearOptionsVisible] = useState(false);
   const wearVitals = user?.wearVitals || {};
-  const wearBp = wearVitals.bloodPressure || user?.bloodPressure || {};
-  const hasWearData = Boolean(user?.wearLastSyncedAt || wearVitals.steps || wearVitals.heartRate || wearBp.systolic);
+  const wearBp = wearVitals.bloodPressure || (user?.bpMode === "wear" ? user?.bloodPressure : null) || {};
+  const hasWearBloodPressure = Boolean(wearBp.systolic && wearBp.diastolic);
   const healthConnectAvailable = isHealthConnectAvailableInApp();
 
   const handleWearSelect = async () => {
@@ -29,12 +29,21 @@ function OnboardStep3({ next, back }) {
     setWearOptionsVisible(true);
     setWearSyncing(true);
     try {
-      await requestWearOSPermissionAndSync();
+      const payload = await requestWearOSBloodPressureAndSync();
+      const bp = payload?.bloodPressure;
+      if (!bp?.systolic || !bp?.diastolic) {
+        setMode("manual");
+        setWearOptionsVisible(false);
+        setWearSyncMessage("");
+        setErrors({ mode: "Wear OS에서 혈압값을 찾지 못했습니다. 직접 입력하거나 선택 안 함을 이용해주세요." });
+        return;
+      }
       setMode("wear");
-      setWearSyncMessage("Wear OS 데이터 연동이 완료되었습니다.");
+      setWearSyncMessage("Wear OS에서 혈압을 불러왔습니다.");
     } catch (error) {
-      setMode(null);
-      setErrors({ mode: error.message || "Wear OS 권한 요청 또는 동기화에 실패했습니다." });
+      setMode("manual");
+      setWearOptionsVisible(false);
+      setErrors({ mode: error.message || "Wear OS에서 혈압을 불러오지 못했습니다. 직접 입력해주세요." });
     } finally {
       setWearSyncing(false);
     }
@@ -55,7 +64,17 @@ function OnboardStep3({ next, back }) {
         return;
       }
     }
-    const data = { bpMode: mode, systolic: systolic || "120", diastolic: diastolic || "80" };
+    if (mode === "wear" && !hasWearBloodPressure) {
+      setMode("manual");
+      setWearOptionsVisible(false);
+      setErrors({ mode: "Wear OS 혈압값이 없습니다. 직접 입력하거나 선택 안 함을 이용해주세요." });
+      return;
+    }
+    const data = {
+      bpMode: mode,
+      systolic: mode === "wear" ? wearBp.systolic : systolic || "120",
+      diastolic: mode === "wear" ? wearBp.diastolic : diastolic || "80"
+    };
     updateUser({
       bpMode: data.bpMode,
       bloodPressure: { systolic: Number(data.systolic), diastolic: Number(data.diastolic) }
@@ -77,7 +96,7 @@ function OnboardStep3({ next, back }) {
         <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 4 }}>
           <span>⌚</span><span style={{ fontWeight: 600, fontSize: 14 }}>Wear OS 건강 데이터 연동</span>
         </div>
-        <p style={{ fontSize: 12, opacity: 0.85 }}>Wear OS 기기와 연동하면 혈압과 활동량을 더 간편하게 불러올 수 있어요.</p>
+        <p style={{ fontSize: 12, opacity: 0.85 }}>Wear OS 기기와 연동하면 혈압을 더 간편하게 불러올 수 있어요.</p>
       </div>
       <div style={{ border: errors.mode ? "1px solid #EF4444" : "1px solid #E5E7EB", borderRadius: 12, padding: 16 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
@@ -100,6 +119,7 @@ function OnboardStep3({ next, back }) {
                 }
                 if (i === 1) setMode("manual");
                 if (i === 2) setMode("skip");
+                setWearSyncMessage("");
                 setWearOptionsVisible(false);
                 setErrors({});
               }} 
@@ -120,20 +140,17 @@ function OnboardStep3({ next, back }) {
         {wearOptionsVisible && mode === "wear" && (
           <div>
             {wearSyncMessage && <p style={{ color: "#2563EB", fontSize: 11, margin: "0 0 10px" }}>{wearSyncMessage}</p>}
-            <div style={{ border: "1px solid #E5E7EB", borderRadius: 10, padding: 12, background: hasWearData ? "#F0FDF4" : "#F9FAFB", marginTop: 4 }}>
+            <div style={{ border: "1px solid #E5E7EB", borderRadius: 10, padding: 12, background: hasWearBloodPressure ? "#F0FDF4" : "#F9FAFB", marginTop: 4 }}>
               <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center", marginBottom: 8 }}>
-                <span style={{ fontSize: 12, fontWeight: 800, color: hasWearData ? "#15803D" : "#6B7280" }}>
-                  {hasWearData ? "Wear OS 연동됨" : healthConnectAvailable ? "권한 필요" : "Android 앱에서만 가능"}
+                <span style={{ fontSize: 12, fontWeight: 800, color: hasWearBloodPressure ? "#15803D" : "#6B7280" }}>
+                  {hasWearBloodPressure ? "혈압 불러오기 완료" : healthConnectAvailable ? "혈압 권한 필요" : "Android 앱에서만 가능"}
                 </span>
                 <span style={{ fontSize: 11, color: "#6B7280" }}>
-                  {user?.wearLastSyncedAt ? new Date(user.wearLastSyncedAt).toLocaleString() : "미동기화"}
+                  Wear OS
                 </span>
               </div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, fontSize: 11, color: "#374151" }}>
-                <span>걸음 {wearVitals.steps?.toLocaleString?.() || "-"}</span>
-                <span>심박 {wearVitals.heartRate ? `${wearVitals.heartRate} bpm` : "-"}</span>
-                <span>혈압 {wearBp.systolic && wearBp.diastolic ? `${wearBp.systolic}/${wearBp.diastolic}` : "-"}</span>
-                <span>방식 {mode === "wear" ? "Wear OS" : "-"}</span>
+              <div style={{ fontSize: 12, color: "#374151" }}>
+                혈압 {hasWearBloodPressure ? `${wearBp.systolic}/${wearBp.diastolic} mmHg` : "값 없음"}
               </div>
             </div>
           </div>

@@ -1,6 +1,33 @@
-﻿const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8080";
+﻿const isNativeAndroid = window.Capacitor?.isNativePlatform?.() && window.Capacitor?.getPlatform?.() === "android";
+const BASE_URL = import.meta.env.VITE_API_URL || (isNativeAndroid ? "http://10.0.2.2:8080" : "http://localhost:8080");
 
 export const privacyConsentDocumentUrl = `${BASE_URL}/privacy/consent/document`;
+
+export async function warmupServer(timeoutMs = 8000) {
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(`${BASE_URL}/health`, {
+      method: "GET",
+      cache: "no-store",
+      signal: controller.signal
+    });
+    return res.ok;
+  } catch (e) {
+    console.warn("warmupServer delayed:", e);
+    return false;
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
+}
+
+export async function fetchPrivacyConsentDocument() {
+  const res = await fetch(privacyConsentDocumentUrl);
+  if (!res.ok) {
+    throw new Error("privacy document fetch failed");
+  }
+  return await res.text();
+}
 
 export async function analyzeHealth(userData) {
   try {

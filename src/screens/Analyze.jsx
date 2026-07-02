@@ -56,7 +56,8 @@ function AnalyzeScreen({ setScreen, back }) {
     return <div style={{ padding: 20, textAlign: "center" }}>로딩 중...</div>;
   }
 
-  const featureSet = risks?.feature_set_used || (risks?.input_mode === "checkup" ? "건강검진연동형" : "간편입력형");
+  const hasCheckupData = Boolean(user?.healthCheckup && Object.keys(user.healthCheckup).length > 0);
+  const featureSet = hasCheckupData ? "건강검진연동형" : "간편입력형";
   const bmi = user.bmi ?? risks?.bmi ?? null;
   const weightManagement = risks?.weight_management;
   const weightPercent = weightManagement?.percent ?? (risks?.obesity ? 75 : 10);
@@ -97,6 +98,7 @@ function AnalyzeScreen({ setScreen, back }) {
     setUserProfile({
       ...user,
       healthCheckup,
+      input_mode: "checkup",
       checkupUpdatedAt: new Date().toISOString()
     });
     closeUploadModal();

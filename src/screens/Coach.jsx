@@ -1,8 +1,9 @@
 import { useState, useRef } from "react";
 import S from '../styles/shared';
-import { QUICK_CHAT_HINTS } from '../mock/mockData';
 import { runCoach } from '../services/coachService';
 import { useHealth } from '../context/HealthContext';
+
+const QUICK_CHAT_HINTS = ["혈압을 낮추려면?", "간암 예방 정보", "적정 체중 목표"];
 
 function CoachScreen({ setScreen }) {
   const { user, risks, userProfile, predictedProfile } = useHealth();

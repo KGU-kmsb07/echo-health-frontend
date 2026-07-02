@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+﻿import { useState, useEffect } from "react";
 import S from '../styles/shared';
 import { ProgressBar } from '../components/Card';
 import { useHealth } from '../context/HealthContext';
@@ -43,7 +43,6 @@ const getActivityEquivalent = (type, minutes, intensity, user) => {
   const comparisons = [
     { threshold: 15, label: `가벼운 산책 ${walkingMinutes}분` },
     { threshold: 35, label: `빠른 걸음 ${walkingMinutes}분` },
-    { threshold: 65, label: `계단 오르기 ${Math.max(5, Math.round(walkingMinutes * 0.35))}분` },
     { threshold: Infinity, label: `러닝 ${Math.max(8, Math.round(walkingMinutes * 0.4))}분` }
   ];
   const similar = comparisons.find(item => walkingMinutes <= item.threshold)?.label;
@@ -124,8 +123,16 @@ const syncExerciseMileage = (records) => {
 const normalizeWearOSPayload = (wearData) => {
   if (!wearData) return { steps: null, records: [] };
   const steps = wearData.steps ?? wearData.stepCount ?? wearData.dailySteps ?? null;
+  const now = new Date();
+  const todayDateKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+  const toDateKey = (value) => {
+    if (!value) return todayDateKey;
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return todayDateKey;
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+  };
   const sessions = Array.isArray(wearData.sessions) ? wearData.sessions : [];
-  const records = sessions.map((session, index) => ({
+  const records = sessions.filter(session => toDateKey(session.startTime || wearData.syncedAt) === todayDateKey).map((session, index) => ({
     id: session.id || `wear-${Date.now()}-${index}`,
     source: "wearos",
     type: session.type || session.exerciseType || "걷기",
@@ -251,7 +258,8 @@ function ExerciseScreen() {
     setWearSyncing(true);
     try {
       const payload = await requestWearOSPermissionAndSync();
-      applyWearOSData(payload || wearData, { saveSessions: true });
+      applyWearOSData(payload || wearData, { saveSessions: false });
+      setRecords(loadExerciseRecords());
     } catch (error) {
       alert(error.message || "Wear OS sync failed.");
     } finally {
@@ -267,12 +275,16 @@ function ExerciseScreen() {
     disconnectWearOS?.();
   };
 
-  const getRecordLabel = (record) => {
-    if (typeof record === "string") return record;
+  const getRecordDisplay = (record) => {
+    if (typeof record === "string") {
+      return { title: record, meta: "" };
+    }
     const minutes = record.durationMinutes ?? parseMinutes(record.duration);
     const recordIntensity = normalizeIntensity(record.intensity);
-    const equivalent = record.equivalent?.similar || getActivityEquivalent(record.type, minutes, recordIntensity, user).similar;
-    return `${record.type} ${minutes}분 · 강도 ${recordIntensity}/10 · ${equivalent}${record.memo ? ` · ${record.memo}` : ""}`;
+    return {
+      title: `${record.type} ${minutes}분`,
+      meta: `강도 ${recordIntensity}/10${record.memo ? ` · ${record.memo}` : ""}`
+    };
   };
 
   const resetRecordForm = () => {
@@ -374,7 +386,63 @@ function ExerciseScreen() {
               </p>
             </div>
           </div>
-          <div style={{ ...S.card, marginBottom: 12 }}>
+          <div style={{ ...S.card, marginBottom: 12, display: "none" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", marginBottom: 12 }}>
+              <div>
+                <p style={{ fontWeight: 800, margin: "0 0 3px", fontSize: 15 }}>Wear OS 동기화</p>
+                <p style={{ margin: 0, fontSize: 11, color: "#6B7280" }}>
+                  {wearConnected
+                    ? `최근 동기화 ${new Date(user?.wearLastSyncedAt || Date.now()).toLocaleString()}`
+                    : "걸음수와 운동기록을 가져옵니다."}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={wearConnected ? handleDisconnect : handleSync}
+                disabled={wearSyncing}
+                aria-pressed={wearConnected}
+                style={{
+                  width: 48,
+                  height: 28,
+                  borderRadius: 999,
+                  border: "none",
+                  padding: 3,
+                  background: wearConnected ? "#2563EB" : "#D1D5DB",
+                  cursor: wearSyncing ? "default" : "pointer",
+                  transition: "background 0.15s"
+                }}
+              >
+                <span
+                  style={{
+                    display: "block",
+                    width: 22,
+                    height: 22,
+                    borderRadius: "50%",
+                    background: "#fff",
+                    transform: wearConnected ? "translateX(20px)" : "translateX(0)",
+                    transition: "transform 0.15s",
+                    boxShadow: "0 1px 3px rgba(0,0,0,0.2)"
+                  }}
+                />
+              </button>
+            </div>
+            <button
+              onClick={handleSync}
+              disabled={wearSyncing}
+              style={{ ...S.btn(wearConnected ? "outline" : "primary"), width: "100%", opacity: wearSyncing ? 0.7 : 1 }}
+            >
+              {wearSyncing ? "동기화 중..." : wearConnected ? "Wear OS 다시 동기화" : "Wear OS 연동하기"}
+            </button>
+            <div style={{ marginTop: 10, display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center", fontSize: 12 }}>
+              <span style={{ fontWeight: 800, color: wearConnected ? "#15803D" : "#6B7280" }}>
+                {wearConnected ? "연동됨" : "미연동"}
+              </span>
+              <span style={{ color: "#6B7280" }}>
+                운동기록 {wearSessionCount}개
+              </span>
+            </div>
+          </div>
+          <div style={{ ...S.card, marginBottom: 12, display: "none" }}>
             <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center", marginBottom: 10 }}>
               <div>
                 <p style={{ fontWeight: 700, margin: "0 0 3px", fontSize: 14 }}>Wear OS 동기화</p>
@@ -388,7 +456,6 @@ function ExerciseScreen() {
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, fontSize: 12, color: "#374151", marginBottom: 12 }}>
               <span>걸음 {(wearVitals.steps ?? todaySteps)?.toLocaleString?.() || "-"}</span>
-              <span>심박 {wearVitals.heartRate ? `${wearVitals.heartRate} bpm` : "-"}</span>
               <span>혈압 {wearBp.systolic && wearBp.diastolic ? `${wearBp.systolic}/${wearBp.diastolic}` : "-"}</span>
               <span>운동 기록 {wearSessionCount}</span>
             </div>
@@ -491,10 +558,15 @@ function ExerciseScreen() {
 
           {/* 오늘 걸음 목표 */}
           <div style={S.card}>
-            <p style={{ fontWeight: 600, margin: "0 0 10px", fontSize: 15 }}>오늘 걸음 목표</p>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+              <p style={{ fontWeight: 700, margin: 0, fontSize: 15 }}>만보기</p>
+              <span style={{ fontSize: 11, fontWeight: 800, color: wearConnected ? "#15803D" : "#9CA3AF" }}>
+                {wearConnected ? "Wear OS 걸음수 반영" : "미연동"}
+              </span>
+            </div>
             <div>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6, fontSize: 13 }}>
-                <span style={{ fontWeight: 600 }}>걸음 수 달성률</span>
+                <span style={{ fontWeight: 600 }}>오늘 걸음</span>
                 <span style={{ color: "#2563EB", fontWeight: 700 }}>
                   {(todaySteps ?? 0).toLocaleString()} / {(weeklyGoals?.steps ?? 8000).toLocaleString()} 보 ({Math.min(100, Math.round(((todaySteps ?? 0) / (weeklyGoals?.steps ?? 8000)) * 100))}%)
                 </span>
@@ -502,8 +574,52 @@ function ExerciseScreen() {
               <ProgressBar pct={Math.min(100, Math.round(((todaySteps ?? 0) / (weeklyGoals?.steps ?? 8000)) * 100))} color="#2563EB" />
             </div>
           </div>
-
-
+          <div style={{ ...S.card, padding: 12 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+              <div style={{ minWidth: 0 }}>
+                <p style={{ margin: "0 0 2px", fontSize: 13, fontWeight: 800 }}>Wear OS 동기화</p>
+                <p style={{ margin: 0, fontSize: 11, color: "#6B7280" }}>
+                  {wearConnected ? `연동됨 · 운동기록 ${wearSessionCount}개` : "걸음수와 오늘 운동기록을 가져옵니다."}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={wearConnected ? handleDisconnect : handleSync}
+                disabled={wearSyncing}
+                aria-pressed={wearConnected}
+                style={{
+                  width: 46,
+                  height: 26,
+                  borderRadius: 999,
+                  border: "none",
+                  padding: 3,
+                  background: wearConnected ? "#2563EB" : "#D1D5DB",
+                  cursor: wearSyncing ? "default" : "pointer",
+                  flexShrink: 0
+                }}
+              >
+                <span
+                  style={{
+                    display: "block",
+                    width: 20,
+                    height: 20,
+                    borderRadius: "50%",
+                    background: "#fff",
+                    transform: wearConnected ? "translateX(20px)" : "translateX(0)",
+                    transition: "none",
+                    boxShadow: "0 1px 3px rgba(0,0,0,0.18)"
+                  }}
+                />
+              </button>
+            </div>
+            <button
+              onClick={handleSync}
+              disabled={wearSyncing}
+              style={{ ...S.btn("outline"), width: "100%", marginTop: 10, padding: "10px 0", fontSize: 13, opacity: wearSyncing ? 0.7 : 1 }}
+            >
+              {wearSyncing ? "동기화 중..." : wearConnected ? "오늘 데이터 다시 동기화" : "Wear OS 연동하기"}
+            </button>
+          </div>
 
           {/* 선택일 운동기록 헤더 및 동기화 버튼 */}
           <div style={{ marginBottom: 12 }}>
@@ -527,14 +643,19 @@ function ExerciseScreen() {
           {/* 운동 기록 리스트 영역 */}
           {dayRecords.length > 0 ? (
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {dayRecords.map((rec, idx) => (
+              {dayRecords.map((rec, idx) => {
+                const display = getRecordDisplay(rec);
+                return (
                 <div key={idx} style={{ ...S.card, display: "flex", gap: 10, alignItems: "center", marginBottom: 0 }}>
                   <span style={{ fontSize: 20 }}>🏃</span>
-                  <span style={{ fontSize: 14, fontWeight: 600, flex: 1 }}>{getRecordLabel(rec)}</span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p style={{ fontSize: 14, fontWeight: 700, color: "#111827", margin: "0 0 2px", lineHeight: 1.35 }}>{display.title}</p>
+                    {display.meta && <p style={{ fontSize: 11, fontWeight: 500, color: "#9CA3AF", margin: 0, lineHeight: 1.3 }}>{display.meta}</p>}
+                  </div>
                   <button onClick={() => openEditModal(rec, idx)} style={{ background: "none", border: "none", color: "#2563EB", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>수정</button>
                   <button onClick={() => handleDeleteRecord(idx)} style={{ background: "none", border: "none", color: "#EF4444", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>삭제</button>
                 </div>
-              ))}
+              )})}
               <button onClick={openAddModal} style={{ background: "none", border: "1px dashed #E5E7EB", borderRadius: 12, padding: "12px 0", color: "#6B7280", cursor: "pointer", fontSize: 13, width: "100%", marginTop: 4 }}>+ 운동 직접 추가</button>
             </div>
           ) : (

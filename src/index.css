@@ -1,27 +1,30 @@
 * { box-sizing: border-box; margin: 0; padding: 0; }
-body { font-family: 'Noto Sans KR', -apple-system, sans-serif; background: #F8F9FB; }
-
-@keyframes screenEnter {
-  from { opacity: 0; transform: translateY(8px); }
-  to   { opacity: 1; transform: translateY(0); }
+html, body, #root {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
 }
+body {
+  font-family: 'Noto Sans KR', -apple-system, sans-serif;
+  background: #F8F9FB;
+  touch-action: pan-y;
+}
+
 .screen-enter {
-  animation: screenEnter 0.2s ease-out;
-}
-
-@keyframes sheetUp {
-  from { transform: translateY(100%); opacity: 0.5; }
-  to   { transform: translateY(0); opacity: 1; }
-}
-@keyframes sheetDown {
-  from { transform: translateY(0); opacity: 1; }
-  to   { transform: translateY(100%); opacity: 0.7; }
+  animation: none;
+  transition: none;
+  transform: none;
+  height: 100%;
+  overflow: hidden;
 }
 .bottom-sheet {
-  animation: sheetUp 0.25s ease-out;
+  animation: none;
+  transition: none;
 }
 .bottom-sheet.closing {
-  animation: sheetDown 0.22s ease-in forwards;
+  animation: none;
+  transition: none;
 }
 
 /* Chrome, Safari, Edge, Opera */
